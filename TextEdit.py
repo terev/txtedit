@@ -75,10 +75,13 @@ class File:
             
         else:
             return [[False, line]]
+
+    def updateLine(self, lineNum):
+        parsed = self.parseLine(self.lines[lineNum])
+        self.parsed[lineNum] = parsed[:]
         
         
     def drawFile(self):
-        global cursorPos
         buff = 5
         largest = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
         pygame.draw.rect(screen, [0, 0, 0], [0, 0, largest, windh], 2)
@@ -87,6 +90,10 @@ class File:
         scope = range(cursor / fontDtb.height, ((cursor + windh) / fontDtb.height) \
                       if ((cursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
         
+        if txtCursPos[1] in scope:
+            cursSlice = self.lines[txtCursPos[1]][:txtCursPos[0]]
+            pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 1, txtCursPos[1] * fontDtb.height + 2, 2, fontDtb.height - 4], 0)
+            
         for i in scope:
             x = 0
             lineN = fontDtb.selected.render(str(i + 1), 20, colors["def"])
@@ -334,6 +341,7 @@ keyboard = Keyboard()
 run = True
 top = 0
 fontDtb.adjustScale(0)
+txtCursPos = [0, 0]
 scale = 100
 while run:
     mse.lastState = mse.clicked
@@ -372,20 +380,59 @@ while run:
                 
             elif cursor + windh < bottom + top:
                 cursor += scale
-
-    if keyboard.pressRelease(K_LEFT):
-        if openFile > 0:
-            openFile -= 1
-        else:
-            openFile = len(files) - 1
-        bottom = len(files[openFile].parsed) * fontDtb.height
-
+                
     if keyboard.pressRelease(K_RIGHT):
-        if openFile < len(files) - 1:
-            openFile += 1
-        else:
-            openFile = 0
-        bottom = len(files[openFile].parsed) * fontDtb.height
+        if txtCursPos[0] < len(files[openFile].lines[txtCursPos[1]]):
+            txtCursPos[0] += 1
+    elif keyboard.pressRelease(K_LEFT):
+        if txtCursPos[0] > 0:
+            txtCursPos[0] -= 1
+    elif keyboard.pressRelease(K_UP):
+        if txtCursPos[1] > 0:
+            txtCursPos[1] -= 1
+        
+    elif keyboard.pressRelease(K_DOWN):
+        if txtCursPos[1] < len(files[openFile].lines):
+            txtCursPos[1] += 1
+        
+    else:
+        for i in range(ord("a"), ord("z") + 1):
+            if keyboard.pressRelease(i):
+                if keyboard.keys[K_LSHIFT]:
+                    files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + chr(i - 32) +\
+                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
+                else:
+                    files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + chr(i) +\
+                                                           files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
+                txtCursPos[0] += 1
+                files[openFile].updateLine(txtCursPos[1])
+
+        if keyboard.pressRelease(K_SPACE):
+            files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + " " +\
+                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
+            txtCursPos[0] += 1
+            files[openFile].updateLine(txtCursPos[1])
+
+        if keyboard.pressRelease(K_BACKSPACE):
+            if txtCursPos[0] > 0:
+                files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0] - 1] +\
+                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
+                txtCursPos[0] -= 1
+                files[openFile].updateLine(txtCursPos[1])
+
+##    if keyboard.pressRelease(K_LEFT):
+##        if openFile > 0:
+##            openFile -= 1
+##        else:
+##            openFile = len(files) - 1
+##        bottom = len(files[openFile].parsed) * fontDtb.height
+##
+##    if keyboard.pressRelease(K_RIGHT):
+##        if openFile < len(files) - 1:
+##            openFile += 1
+##        else:
+##            openFile = 0
+##        bottom = len(files[openFile].parsed) * fontDtb.height
             
     screen.fill([255, 255, 255])
     files[openFile].drawFile()
