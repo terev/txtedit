@@ -79,25 +79,37 @@ class File:
     def updateLine(self, lineNum):
         parsed = self.parseLine(self.lines[lineNum])
         self.parsed[lineNum] = parsed[:]
+
+    def mergeLines(self, dest, src):
+        self.parsed[dest] += self.parsed[src]
+        self.lines[dest] += self.lines[src]
+        
+        del self.parsed[src]
+        del self.lines[src]
+        for i in range(dest, len(self.lines)):
+            self.updateLine(i)
+        fontDtb.adjustScale(0)
         
         
     def drawFile(self):
         buff = 5
         largest = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
-        pygame.draw.rect(screen, [0, 0, 0], [0, 0, largest, windh], 2)
+        pygame.draw.rect(screen, [200, 200, 200], [0, top, largest, windh], 0)
 
         #Screen scope range
         scope = range(cursor / fontDtb.height, ((cursor + windh) / fontDtb.height) \
                       if ((cursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
-        
-        if txtCursPos[1] in scope:
-            cursSlice = self.lines[txtCursPos[1]][:txtCursPos[0]]
-            pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 1, txtCursPos[1] * fontDtb.height + 2, 2, fontDtb.height - 4], 0)
+
+        for i in range(len(textCursors)):
+            if textCursors[i].pos[1] in scope:
+                cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
+                pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 1, \
+                                                     textCursors[i].pos[1] * fontDtb.height + 2 + top, 2, fontDtb.height - 4], 0)
             
         for i in scope:
             x = 0
-            lineN = fontDtb.selected.render(str(i + 1), 20, colors["def"])
-            screen.blit(lineN, [x + 2, i * fontDtb.height - cursor])
+            lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
+            screen.blit(lineN, [x + 2, i * fontDtb.height - cursor + top])
             x += largest + buff
              
             for w in range(len(self.parsed[i])):
@@ -106,7 +118,7 @@ class File:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 20, colors[self.parsed[i][w][2]])
                 else:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 20, colors["def"])
-                screen.blit(surface, [x, i * fontDtb.height - cursor])
+                screen.blit(surface, [x, i * fontDtb.height - cursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
 
 class keyGroup:
@@ -209,19 +221,75 @@ class fontDatabase:
         for i in range(len(fList)):
             self.fonts.append(pygame.font.Font(self.path + "/" + fList[i], self.fontSize))
 
-    def adjustScale(self, scale):
-        global bottom
+    def adjustScale(self, size):
+        global bottom, scale
         del self.fonts[:]
         self.fonts = []
-        self.fontSize += scale
+        self.fontSize += size
         self.loadFonts()
         self.selected = self.fonts[self.active]
         self.height = self.selected.size("I")[1]
         bottom = len(files[openFile].lines) * self.height
+        scale = self.height * 5
         
     def updateFont(self):
         self.selected = self.fonts[self.active]
 
+class textCursor:
+    def __init__(self, pos):
+        self.pos = pos
+
+    def update(self):
+        if keyboard.keys[K_RIGHT]:
+            if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
+                self.pos[0] += 1
+                
+        elif keyboard.keys[K_LEFT]:
+            if self.pos[0] > 0:
+                self.pos[0] -= 1
+                
+        if keyboard.keys[K_UP]:
+            if self.pos[1] > 0:
+                self.pos[1] -= 1
+                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
+                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+            
+        elif keyboard.keys[K_DOWN]:
+            if self.pos[1] < len(files[openFile].lines):
+                self.pos[1] += 1
+                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
+                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                    
+        for i in range(ord("a"), ord("z") + 1):
+            if keyboard.keys[i]:
+                if keyboard.modifiers[1]:
+                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i - 32) +\
+                                                       files[openFile].lines[self.pos[1]][self.pos[0]:]
+                else:
+                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
+                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
+                self.pos[0] += 1
+                files[openFile].updateLine(self.pos[1])
+
+        for i in range(32, 65):
+            if keyboard.keys[i]:
+                files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
+                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
+                self.pos[0] += 1
+                files[openFile].updateLine(self.pos[1])
+
+        if keyboard.keys[K_BACKSPACE]:
+            if self.pos[0] > 0:
+                files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
+                                                       files[openFile].lines[self.pos[1]][self.pos[0]:]
+                self.pos[0] -= 1
+                files[openFile].updateLine(self.pos[1])
+                
+            elif self.pos[1] > 0:
+                
+                self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
+                files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
+                self.pos[1] -= 1
 class Mouse:
     def __init__(self):
         self.clickPos = (0, 0)
@@ -269,6 +337,8 @@ class Keyboard:
     def __init__(self):
         self.keys = [False] * 320
         self.last = [False] * 320
+        self.modifiersK = [K_LCTRL, K_LSHIFT]
+        self.modifiers = [False] * 2
         
     def pressRelease(self, key):
         return self.last[key] and not self.keys[key]
@@ -319,7 +389,7 @@ def inString(text, span):
     return right and left
 
 
-global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile
+global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale
 pygame.init()
 windw, windh = 1900, 980
 screen = pygame.display.set_mode([windw, windh])
@@ -331,6 +401,7 @@ colors["purple"] = [147, 112, 219]
 colors["def"] = [0, 0, 0]
 syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 15)
+
 files = [File("files/textEdit.py"), File("files/test.py"),
          File("files/highlightTest.py"), File("files/SquaresInSpace.py")]
 
@@ -338,15 +409,17 @@ openFile = 0
 cursor = 0
 mse = Mouse()
 keyboard = Keyboard()
+textCursors = [textCursor([0, 0])]
 run = True
 top = 0
 fontDtb.adjustScale(0)
-txtCursPos = [0, 0]
 scale = 100
+pygame.key.set_repeat(250, 30)
 while run:
     mse.lastState = mse.clicked
     for i in range(len(keyboard.keys)):
         keyboard.last[i] = keyboard.keys[i]
+        keyboard.keys[i] = False
         
     for event in pygame.event.get():
         if event.type == QUIT:
@@ -355,10 +428,18 @@ while run:
         if event.type == KEYDOWN:
             if event.key in range(len(keyboard.keys)):
                 keyboard.keys[event.key] = True
+                
+            for i in range(len(keyboard.modifiersK)):
+                if event.key == keyboard.modifiersK[i]:
+                    keyboard.modifiers[i] = True
             
         if event.type == KEYUP:
             if event.key in range(len(keyboard.keys)):
                 keyboard.keys[event.key] = False
+                
+            for i in range(len(keyboard.modifiersK)):
+                if event.key == keyboard.modifiersK[i]:
+                    keyboard.modifiers[i] = False
                 
         if event.type == MOUSEBUTTONDOWN:
             if event.button in range(len(mse.buttons)):
@@ -369,57 +450,23 @@ while run:
                 mse.buttons[event.button] = False
                     
         if mse.buttons[4]:
-            if keyboard.keys[K_LCTRL]:
-                fontDtb.adjustScale(1)
+            if keyboard.modifiers[0]:
+                fontDtb.adjustScale(2)
                 
             elif  cursor > 0:
                 cursor -= scale
+                
         elif mse.buttons[5]:
-            if keyboard.keys[K_LCTRL]:
-                fontDtb.adjustScale(-1)
+            if keyboard.modifiers[0]:
+                if fontDtb.fontSize - 2  > 0:
+                    fontDtb.adjustScale(-2)
                 
             elif cursor + windh < bottom + top:
                 cursor += scale
-                
-    if keyboard.pressRelease(K_RIGHT):
-        if txtCursPos[0] < len(files[openFile].lines[txtCursPos[1]]):
-            txtCursPos[0] += 1
-    elif keyboard.pressRelease(K_LEFT):
-        if txtCursPos[0] > 0:
-            txtCursPos[0] -= 1
-    elif keyboard.pressRelease(K_UP):
-        if txtCursPos[1] > 0:
-            txtCursPos[1] -= 1
+    
+    for i in range(len(textCursors)):
+        textCursors[i].update()
         
-    elif keyboard.pressRelease(K_DOWN):
-        if txtCursPos[1] < len(files[openFile].lines):
-            txtCursPos[1] += 1
-        
-    else:
-        for i in range(ord("a"), ord("z") + 1):
-            if keyboard.pressRelease(i):
-                if keyboard.keys[K_LSHIFT]:
-                    files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + chr(i - 32) +\
-                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
-                else:
-                    files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + chr(i) +\
-                                                           files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
-                txtCursPos[0] += 1
-                files[openFile].updateLine(txtCursPos[1])
-
-        if keyboard.pressRelease(K_SPACE):
-            files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0]] + " " +\
-                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
-            txtCursPos[0] += 1
-            files[openFile].updateLine(txtCursPos[1])
-
-        if keyboard.pressRelease(K_BACKSPACE):
-            if txtCursPos[0] > 0:
-                files[openFile].lines[txtCursPos[1]] =  files[openFile].lines[txtCursPos[1]][:txtCursPos[0] - 1] +\
-                                                       files[openFile].lines[txtCursPos[1]][txtCursPos[0]:]
-                txtCursPos[0] -= 1
-                files[openFile].updateLine(txtCursPos[1])
-
 ##    if keyboard.pressRelease(K_LEFT):
 ##        if openFile > 0:
 ##            openFile -= 1
