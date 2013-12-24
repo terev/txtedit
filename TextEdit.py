@@ -47,7 +47,6 @@ class File:
                 return [[False, line]]
             
             else:
-
                 fixed = line
                 for l in range(len(keysIn)):
                     fixed = "".join(fixed.split(keysIn[l]))
@@ -99,13 +98,7 @@ class File:
         #Screen scope range
         scope = range(cursor / fontDtb.height, ((cursor + windh) / fontDtb.height) \
                       if ((cursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
-
-        for i in range(len(textCursors)):
-            if textCursors[i].pos[1] in scope:
-                cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
-                pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 1, \
-                                                     textCursors[i].pos[1] * fontDtb.height + 2 + top, 2, fontDtb.height - 4], 0)
-            
+        
         for i in scope:
             x = 0
             lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
@@ -115,12 +108,19 @@ class File:
             for w in range(len(self.parsed[i])):
                
                 if self.parsed[i][w][0]:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 20, colors[self.parsed[i][w][2]])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors[self.parsed[i][w][2]])
                 else:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 20, colors["def"])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors["def"])
                 screen.blit(surface, [x, i * fontDtb.height - cursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
-
+                
+        if on:
+            for i in range(len(textCursors)):
+                if textCursors[i].pos[1] in scope:
+                    cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
+                    pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 4, \
+                                                         textCursors[i].pos[1] * fontDtb.height + 2 + top - cursor, 2, fontDtb.height - 4], 0)
+        
 class keyGroup:
     def __init__(self, color, words):
         self.color = color
@@ -209,7 +209,7 @@ class fontDatabase:
         self.loadFonts()
         self.active = 0
         self.selected = self.fonts[self.active]
-        self.height = self.selected.size("I")[1]
+        self.height = self.selected.get_linesize()
         
     def loadFonts(self):
         global fontSize
@@ -228,7 +228,7 @@ class fontDatabase:
         self.fontSize += size
         self.loadFonts()
         self.selected = self.fonts[self.active]
-        self.height = self.selected.size("I")[1]
+        self.height = self.selected.get_linesize()
         bottom = len(files[openFile].lines) * self.height
         scale = self.height * 5
         
@@ -278,7 +278,23 @@ class textCursor:
                 self.pos[0] += 1
                 files[openFile].updateLine(self.pos[1])
 
-        if keyboard.keys[K_BACKSPACE]:
+        if keyboard.keys[K_TAB]:
+             files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + " " * tabWidth +\
+                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
+             self.pos[0] += tabWidth
+             files[openFile].updateLine(self.pos[1])
+             
+        if keyboard.keys[K_RETURN]:
+            cut = files[openFile].lines[self.pos[1]][self.pos[0]:]
+            files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]]
+            
+            files[openFile].lines.insert(self.pos[1] + 1, cut)
+            files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
+            files[openFile].updateLine(self.pos[1])
+            self.pos[0] = 0
+            self.pos[1] += 1
+            
+        elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
@@ -290,6 +306,7 @@ class textCursor:
                 self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
                 files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
                 self.pos[1] -= 1
+                
 class Mouse:
     def __init__(self):
         self.clickPos = (0, 0)
@@ -389,7 +406,7 @@ def inString(text, span):
     return right and left
 
 
-global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale
+global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale, tabWidth
 pygame.init()
 windw, windh = 1900, 980
 screen = pygame.display.set_mode([windw, windh])
@@ -400,7 +417,7 @@ colors["orange"] = [255, 165, 0]
 colors["purple"] = [147, 112, 219]
 colors["def"] = [0, 0, 0]
 syntaxDtb = syntaxDatabase("manifest.txt")
-fontDtb = fontDatabase("assets/fonts", 15)
+fontDtb = fontDatabase("assets/fonts", 18)
 
 files = [File("files/textEdit.py"), File("files/test.py"),
          File("files/highlightTest.py"), File("files/SquaresInSpace.py")]
@@ -415,7 +432,19 @@ top = 0
 fontDtb.adjustScale(0)
 scale = 100
 pygame.key.set_repeat(250, 30)
+clock = pygame.time.Clock()
+
+#spaces in a tab
+tabWidth = 4
+
+#Cursor blink on and off intervals
+onInterval = 500
+offInterval = 400
+
+time = 0
+on = True
 while run:
+    time += clock.get_time()
     mse.lastState = mse.clicked
     for i in range(len(keyboard.keys)):
         keyboard.last[i] = keyboard.keys[i]
@@ -463,6 +492,42 @@ while run:
                 
             elif cursor + windh < bottom + top:
                 cursor += scale
+    if cursor < 0:
+        cursor = 0
+    mse.update()
+    if on:
+        if time >= onInterval:
+            on = not on
+            time = 0
+    else:
+        if time >= offInterval:
+            on = not on
+            time = 0
+            
+    if mse.clicked:
+        xPos = 0
+        yPos = (mse.pos[1] + cursor) / fontDtb.height
+        nLines = len(files[openFile].lines)
+        if yPos > nLines - 1:
+            yPos = nLines - 1
+            
+        nChars = len(files[openFile].lines[yPos])
+        charX = fontDtb.selected.size(str(nLines))[0]
+        sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
+        picked = False
+        for i in range(nChars):
+            
+            if pygame.Rect(mse.pos[0], mse.pos[1] + cursor, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
+                xPos = i
+                picked = True
+                break
+            charX += sliceMetrics[i][4]
+            
+        if not picked and xPos == 0 and i == nChars - 1:
+            xPos = nChars
+
+        textCursors[0].pos[0] = xPos
+        textCursors[0].pos[1] = yPos
     
     for i in range(len(textCursors)):
         textCursors[i].update()
@@ -480,8 +545,8 @@ while run:
 ##        else:
 ##            openFile = 0
 ##        bottom = len(files[openFile].parsed) * fontDtb.height
-            
     screen.fill([255, 255, 255])
     files[openFile].drawFile()
     pygame.display.update()
+    clock.tick()
 pygame.quit()
