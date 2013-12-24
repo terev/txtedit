@@ -1,0 +1,3 @@
+Cursor Alignment
+Tabs
+Clicking to move cursor
