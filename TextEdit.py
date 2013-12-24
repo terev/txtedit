@@ -106,7 +106,6 @@ class File:
             x += largest + buff
              
             for w in range(len(self.parsed[i])):
-               
                 if self.parsed[i][w][0]:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors[self.parsed[i][w][2]])
                 else:
@@ -238,6 +237,7 @@ class fontDatabase:
 class textCursor:
     def __init__(self, pos):
         self.pos = pos
+        self.index = len(textCursors)
 
     def update(self):
         if keyboard.keys[K_RIGHT]:
@@ -260,34 +260,26 @@ class textCursor:
                 if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
                     self.pos[0] = len(files[openFile].lines[self.pos[1]])
                     
-        for i in range(ord("a"), ord("z") + 1):
-            if keyboard.keys[i]:
-                if keyboard.modifiers[1]:
-                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i - 32) +\
-                                                       files[openFile].lines[self.pos[1]][self.pos[0]:]
-                else:
-                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-                self.pos[0] += 1
-                files[openFile].updateLine(self.pos[1])
-
-        for i in range(32, 65):
-            if keyboard.keys[i]:
-                files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-                self.pos[0] += 1
-                files[openFile].updateLine(self.pos[1])
-
+        if keyboard.string != "":
+            for i in range(self.index):
+                if textCursors[i].pos[1] == self.pos[1]:
+                    self.pos[0] += 1
+            files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
+            self.pos[0] += 1
+            
+            files[openFile].updateLine(self.pos[1])
+            
         if keyboard.keys[K_TAB]:
-             files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + " " * tabWidth +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-             self.pos[0] += tabWidth
-             files[openFile].updateLine(self.pos[1])
+            for i in range(self.index):
+                if textCursors[i].pos[1] == self.pos[1]:
+                    self.pos[0] += tabWidth
+            files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
+            self.pos[0] += tabWidth
+            files[openFile].updateLine(self.pos[1])
              
-        if keyboard.keys[K_RETURN]:
+        elif keyboard.keys[K_RETURN]:
             cut = files[openFile].lines[self.pos[1]][self.pos[0]:]
             files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]]
-            
             files[openFile].lines.insert(self.pos[1] + 1, cut)
             files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
             files[openFile].updateLine(self.pos[1])
@@ -296,6 +288,9 @@ class textCursor:
             
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
+                for i in range(self.index):
+                    if textCursors[i].pos[1] == self.pos[1]:
+                        self.pos[0] -= 1
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
                 self.pos[0] -= 1
@@ -317,10 +312,18 @@ class Mouse:
         self.buttons = [False] * 6
         self.lastClick = -1
         self.doubleClick = False
+        self.lastpos = [[0, 0], [0, 0]]
+        
     def update(self):
         global clock
         
         self.pos = pygame.mouse.get_pos()
+        
+        self.lastpos[1][0] = self.lastpos[0][0]
+        self.lastpos[1][1] = self.lastpos[0][1]
+        self.lastpos[0][0] = self.pos[0]
+        self.lastpos[0][1] = self.pos[1]
+        
         self.clicked = self.buttons[1]
 
         self.clickRelease = False
@@ -356,6 +359,43 @@ class Keyboard:
         self.last = [False] * 320
         self.modifiersK = [K_LCTRL, K_LSHIFT]
         self.modifiers = [False] * 2
+        self.keymap = [")", "!", "@", "#", "$", "%", "^", "&", "*", "("]
+        self.string = ""
+
+    def update(self):
+        self.buildString()
+
+    def buildString(self):
+        self.string = ""
+        for i in range(ord("a"), ord("z") + 1):
+            if keyboard.keys[i]:
+                if keyboard.modifiers[1]:
+                    self.string += chr(i - 32)
+                else:
+                    self.string += chr(i)
+
+        for i in range(32, 48):
+            if i != 45 and keyboard.keys[i]:
+                self.string += chr(i)
+
+        for i in range(48, 58):
+            if keyboard.keys[i]:
+                if keyboard.modifiers[1]:
+                    self.string += keyboard.keymap[i - 48]
+                else:
+                    self.string += chr(i)
+
+        if keyboard.keys[K_MINUS]:
+            if keyboard.modifiers[1]:
+                self.string += "_"
+            else:
+                self.string += "-"
+
+        elif keyboard.keys[K_EQUALS]:
+            if keyboard.modifiers[1]:
+                self.string += "="
+            else:
+                self.string += "+"
         
     def pressRelease(self, key):
         return self.last[key] and not self.keys[key]
@@ -405,8 +445,11 @@ def inString(text, span):
 
     return right and left
 
+def strInsert(part, string, index):
+    return string[:index] + part + string[index:]
 
-global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale, tabWidth
+
+global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale, tabWidth, textCursors
 pygame.init()
 windw, windh = 1900, 980
 screen = pygame.display.set_mode([windw, windh])
@@ -414,19 +457,20 @@ colors = {}
 colors["blue"] = [0, 0, 255]
 colors["red"] = [255, 0, 0]
 colors["orange"] = [255, 165, 0]
-colors["purple"] = [147, 112, 219]
+colors["purple"] = [160, 3, 240]
 colors["def"] = [0, 0, 0]
 syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
 
-files = [File("files/textEdit.py"), File("files/test.py"),
-         File("files/highlightTest.py"), File("files/SquaresInSpace.py")]
+files = [File("files/highlightTest.py"),File("files/textEdit.py"),File("files/test.py"),
+         File("files/SquaresInSpace.py")]
 
 openFile = 0
 cursor = 0
 mse = Mouse()
 keyboard = Keyboard()
-textCursors = [textCursor([0, 0])]
+textCursors = []
+textCursors.append(textCursor([0, 0]))
 run = True
 top = 0
 fontDtb.adjustScale(0)
@@ -492,8 +536,17 @@ while run:
                 
             elif cursor + windh < bottom + top:
                 cursor += scale
+
+    if mse.buttons[2]:
+        if cursor >= 0 and cursor + windh <= bottom + top:
+            cursor += (mse.lastpos[1][1] - mse.lastpos[0][1]) * 4
+
     if cursor < 0:
         cursor = 0
+    elif cursor + windh > bottom + top and bottom - windh >= 0:
+        cursor = bottom - windh
+        
+    keyboard.update()
     mse.update()
     if on:
         if time >= onInterval:
@@ -504,7 +557,7 @@ while run:
             on = not on
             time = 0
             
-    if mse.clicked:
+    if mse.clicked and not mse.lastState:
         xPos = 0
         yPos = (mse.pos[1] + cursor) / fontDtb.height
         nLines = len(files[openFile].lines)
@@ -526,8 +579,28 @@ while run:
         if not picked and xPos == 0 and i == nChars - 1:
             xPos = nChars
 
-        textCursors[0].pos[0] = xPos
-        textCursors[0].pos[1] = yPos
+        if keyboard.modifiers[0]:
+            #Sort greatest to least y pos
+            textCursors.append(textCursor([xPos, yPos]))
+            temp = []
+            for i in range(len(textCursors)):
+                temp.append([textCursors[i].pos[1], str(i)])
+            temp.sort()
+            temp = temp[::-1]
+            sort = []
+            for i in range(len(temp)):
+                sort.append(textCursors[int(temp[i][1])])
+            textCursors = []
+            for i in range(len(sort)):
+                textCursors.append(textCursor(sort[i].pos))
+                
+        else:
+            if len(textCursors) > 0:
+                for i in range(len(textCursors) - 1, 0, -1):
+                    textCursors.pop(i)
+                    i -= 1
+            textCursors[0].pos[0] = xPos
+            textCursors[0].pos[1] = yPos
     
     for i in range(len(textCursors)):
         textCursors[i].update()
