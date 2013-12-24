@@ -462,8 +462,8 @@ colors["def"] = [0, 0, 0]
 syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
 
-files = [File("files/highlightTest.py"),File("files/textEdit.py"),File("files/test.py"),
-         File("files/SquaresInSpace.py")]
+files = [File("files/textEdit.py"),File("files/test.py"),
+         File("files/highlightTest.py"),File("files/SquaresInSpace.py")]
 
 openFile = 0
 cursor = 0
