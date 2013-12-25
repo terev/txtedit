@@ -216,30 +216,27 @@ class fontDatabase:
     def __init__(self, path, fontSize):
         self.path = path
         self.fontSize = fontSize
-        self.fonts = []
-        self.loadFonts()
-        self.active = 0
-        self.selected = self.fonts[self.active]
-        self.height = self.selected.get_linesize()
-        
-    def loadFonts(self):
-        global fontSize
+        self.guiSize = 18
         try:
-            fList = os.listdir(self.path)
+            self.fonts = os.listdir(self.path)
         except:
             warn("Acess Denied to " + self.path)
             return
-        for i in range(len(fList)):
-            self.fonts.append(pygame.font.Font(self.path + "/" + fList[i], self.fontSize))
+        
+        self.active = 0
+        self.guiFont = self.loadFont(self.fonts[0], self.guiSize)
+        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
+        self.height = self.selected.size("I")[1]
+        self.guiHeight = self.guiFont.size("I")[1]
 
+    def loadFont(self, font, size):
+        return pygame.font.Font(self.path + "/" + font, size)
+        
     def adjustScale(self, size):
         global bottom, scale
-        del self.fonts[:]
-        self.fonts = []
         self.fontSize += size
-        self.loadFonts()
-        self.selected = self.fonts[self.active]
-        self.height = self.selected.get_linesize()
+        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
+        self.height = self.selected.size("I")[1]
         bottom = len(files[openFile].lines) * self.height
         scale = self.height * 5
         
@@ -475,24 +472,36 @@ class Control:
         pass
 
 class DropDown(Control):
-    def __init__(self, pos, size, items = []):
+    def __init__(self, pos, size, items = [], selected = -1):
         Control.__init__(self, pos, size)
         self.items = items
-        self.dropButton = Button([self.pos[0] + self.size[0], self.pos[1]], [self.size[1], self.size[1]], [0, 0, 0])
+        self.dropButton = Button([self.pos[0] + self.size[0], self.pos[1]], [self.size[1], self.size[1]], True, [0, 0, 0], imgDtb.imgGroups["GUI"]["DropDown"])
         self.dropOpen = False
-        self.selected = -1
+        self.selected = selected
         
     def update(self):
         self.dropButton.update()
         if self.dropButton.activated:
             self.dropOpen = not self.dropOpen
-        
+
+        if self.dropOpen and mse.clickRelease:
+            for i in range(len(self.items)):
+                if pygame.Rect(mse.pos[0], mse.pos[1], 1, 1).colliderect(pygame.Rect(self.pos[0] + 2, self.pos[1] + self.size[1] + i * fontDtb.guiHeight, self.size[0], fontDtb.guiHeight)):
+                    self.selected = i
+                    self.dropOpen = False
+                    break
 
     def draw(self):
         global screen, fontDtb
         if self.selected != -1:
-            txt = fontDtb.selected.render(self.items[self.selected], 20, [0, 0, 0])
+            txt = fontDtb.guiFont.render(self.items[self.selected], 20, [0, 0, 0])
             screen.blit(txt, [self.pos[0] + 2, self.pos[1]])
+
+        if self.dropOpen:
+            pygame.draw.rect(screen, [0, 0, 0], [self.pos[0], self.pos[1] + self.size[1], self.size[0], fontDtb.guiHeight * len(self.items)], 2)
+            for i in range(len(self.items)):
+                txtSurf = fontDtb.guiFont.render(self.items[i], 20, [0, 0, 0])
+                screen.blit(txtSurf, [self.pos[0] + 2, self.pos[1] + self.size[1] + i * fontDtb.guiHeight])
             
         pygame.draw.rect(screen, [0, 0, 0], [self.pos[0], self.pos[1], self.size[0], self.size[1]], 2)
         self.dropButton.draw()
@@ -596,7 +605,7 @@ pygame.init()
 windw, windh = 1900, 980
 
 #Top and bottom boundaries, top variable
-top, bottom = 40, 0
+top, bottom = 30, 0
 
 #Draw line numbers bool
 drawLineN = True
@@ -613,17 +622,23 @@ syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
 imgDtb = imageDatabase(["assets/images/GUI"])
 
-files = [File("files/highlightTest.py"),File("files/textEdit.py"),File("files/test.py"),
+files = [File("files/textEdit.py"),File("files/highlightTest.py"),File("files/test.py"),
          File("files/SquaresInSpace.py")]
 
 guiItems = {}
-#guiItems["test"] = DropDown([windw - 300, 0], [200, 26], ["test"])
+
+#font selector drop down
+guiItems["fontSelector"] = DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active)
 
 #line numbers toggle
 guiItems["lnToggle"] = CheckBox([20, 0], [20, 20], True)
 
+#open file index
 openFile = 0
+
+#vertical scroll pos
 cursor = 0
+
 mse = Mouse()
 keyboard = Keyboard()
 textCursors = []
@@ -694,7 +709,8 @@ while run:
             elif cursor + windh < bottom + top:
                 cursor += scale
 
-    drawLineN = guiItems["lnToggle"].state
+    
+    
     if mse.buttons[2]:
         if cursor >= 0 and cursor + windh <= bottom + top:
             cursor += (mse.lastpos[1][1] - mse.lastpos[0][1]) * 4
@@ -723,6 +739,7 @@ while run:
             yPos = nLines - 1
             
         nChars = len(files[openFile].lines[yPos])
+        #-4 hard coded value to align cursor better
         charX = -4
         
         if drawLineN:
@@ -756,6 +773,11 @@ while run:
 
     for i in guiItems:
         guiItems[i].update()
+        
+    drawLineN = guiItems["lnToggle"].state
+    if guiItems["fontSelector"].selected != -1:
+        fontDtb.active = guiItems["fontSelector"].selected
+        fontDtb.adjustScale(0)
 
     screen.fill([255, 255, 255])
     files[openFile].drawFile()
