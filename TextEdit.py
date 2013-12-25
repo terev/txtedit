@@ -104,7 +104,12 @@ class File:
             lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
             screen.blit(lineN, [x + 2, i * fontDtb.height - cursor + top])
             x += largest + buff
-             
+            
+            for j in range(len(textCursors)):
+                if textCursors[j].pos[1] == i:
+                    pygame.draw.rect(screen, [240, 240, 240], [x, i * fontDtb.height - cursor, windw, fontDtb.height], 0)
+                    break
+
             for w in range(len(self.parsed[i])):
                 if self.parsed[i][w][0]:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors[self.parsed[i][w][2]])
@@ -261,20 +266,23 @@ class textCursor:
                     self.pos[0] = len(files[openFile].lines[self.pos[1]])
                     
         if keyboard.string != "":
-            for i in range(self.index):
-                if textCursors[i].pos[1] == self.pos[1]:
-                    self.pos[0] += 1
+            for i in range(len(textCursors)):
+                if i != self.index:
+                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] >= self.pos[0]:
+                        textCursors[i].pos[0] += 1
             files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += 1
             
             files[openFile].updateLine(self.pos[1])
             
         if keyboard.keys[K_TAB]:
-            for i in range(self.index):
-                if textCursors[i].pos[1] == self.pos[1]:
-                    self.pos[0] += tabWidth
+            for i in range(len(textCursors)):
+                if i != self.index:
+                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] >= self.pos[0]:
+                            textCursors[i].pos[0] += tabWidth
             files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += tabWidth
+            
             files[openFile].updateLine(self.pos[1])
              
         elif keyboard.keys[K_RETURN]:
@@ -288,12 +296,14 @@ class textCursor:
             
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
-                for i in range(self.index):
-                    if textCursors[i].pos[1] == self.pos[1]:
-                        self.pos[0] -= 1
+                
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
                 self.pos[0] -= 1
+                for i in range(len(textCursors)):
+                    if i != self.index:
+                        if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] > self.pos[0]:
+                            textCursors[i].pos[0] -= 1
                 files[openFile].updateLine(self.pos[1])
                 
             elif self.pos[1] > 0:
@@ -580,19 +590,8 @@ while run:
             xPos = nChars
 
         if keyboard.modifiers[0]:
-            #Sort greatest to least y pos
             textCursors.append(textCursor([xPos, yPos]))
-            temp = []
-            for i in range(len(textCursors)):
-                temp.append([textCursors[i].pos[1], str(i)])
-            temp.sort()
-            temp = temp[::-1]
-            sort = []
-            for i in range(len(temp)):
-                sort.append(textCursors[int(temp[i][1])])
-            textCursors = []
-            for i in range(len(sort)):
-                textCursors.append(textCursor(sort[i].pos))
+
                 
         else:
             if len(textCursors) > 0:
@@ -602,22 +601,9 @@ while run:
             textCursors[0].pos[0] = xPos
             textCursors[0].pos[1] = yPos
     
-    for i in range(len(textCursors)):
+    for i in range(len(textCursors)-1, -1, -1):
         textCursors[i].update()
-        
-##    if keyboard.pressRelease(K_LEFT):
-##        if openFile > 0:
-##            openFile -= 1
-##        else:
-##            openFile = len(files) - 1
-##        bottom = len(files[openFile].parsed) * fontDtb.height
-##
-##    if keyboard.pressRelease(K_RIGHT):
-##        if openFile < len(files) - 1:
-##            openFile += 1
-##        else:
-##            openFile = 0
-##        bottom = len(files[openFile].parsed) * fontDtb.height
+
     screen.fill([255, 255, 255])
     files[openFile].drawFile()
     pygame.display.update()
