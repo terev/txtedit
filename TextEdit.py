@@ -669,6 +669,11 @@ top, bottom = 30, 0
 
 #Draw line numbers bool
 drawLineN = True
+#blah blah
+
+
+
+
 
 screen = pygame.display.set_mode([windw, windh])
 colors = {}
@@ -682,8 +687,8 @@ syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
 imgDtb = imageDatabase(["assets/images/GUI"])
 
-files = [File("files/highlightTest.py"),File("files/textEdit.py"),File("files/test.py"),
-         File("files/SquaresInSpace.py")]
+files = [File("files/highlightTest.py"),File("files/textEdit.py"),
+         File("files/test.py"),File("files/SquaresInSpace.py")]
 
 guiItems = {}
 
