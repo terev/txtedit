@@ -1,5 +1,7 @@
 import pygame, re, os
 from pygame.locals import *
+#comment for testing
+
 
 class File:
     def __init__(self, path):
@@ -138,6 +140,7 @@ class keyGroup:
         self.words = words
     
 
+#I also put a comment here
 class highlight:
     def __init__(self, name, path, extenstions):
         self.name = name
