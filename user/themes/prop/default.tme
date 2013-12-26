@@ -1,0 +1,9 @@
+GROUPCOLOURS
+	group0|255,165,0
+	group1|0,0,255
+	group2|160,3,240
+	group3|255,0,0
+	def|0,0,0
+/GROUPCOLOURS
+LINENUMBERS|0
+BODYFONT|Courier.ttf
