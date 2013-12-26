@@ -1,7 +1,5 @@
 import pygame, re, os
 from pygame.locals import *
-#comment for testing nolan changes this
-
 
 class File:
     def __init__(self, path):
@@ -139,8 +137,6 @@ class keyGroup:
         self.color = color
         self.words = words
     
-
-#I also put a comment here
 class highlight:
     def __init__(self, name, path, extenstions):
         self.name = name
@@ -246,7 +242,7 @@ class fontDatabase:
     def updateFont(self):
         self.selected = self.fonts[self.active]
 
-#Oh this is a random place
+
 class image:
     def __init__(self, path):
         self.path = path
@@ -673,11 +669,6 @@ top, bottom = 30, 0
 
 #Draw line numbers bool
 drawLineN = True
-#blah blah
-
-
-
-
 
 screen = pygame.display.set_mode([windw, windh])
 colors = {}
