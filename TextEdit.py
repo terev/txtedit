@@ -223,7 +223,7 @@ class fontDatabase:
             warn("Acess Denied to " + self.path)
             return
         
-        self.active = 0
+        self.active = 2
         self.guiFont = self.loadFont(self.fonts[0], self.guiSize)
         self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
         self.height = self.selected.size("I")[1]
@@ -238,11 +238,12 @@ class fontDatabase:
         self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
         self.height = self.selected.size("I")[1]
         bottom = len(files[openFile].lines) * self.height
-        scale = self.height * 5
+        scale = self.height * 3
         
     def updateFont(self):
         self.selected = self.fonts[self.active]
 
+#Oh this is a random place
 class image:
     def __init__(self, path):
         self.path = path
