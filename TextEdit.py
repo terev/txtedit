@@ -630,38 +630,6 @@ def strInsert(part, string, index):
     return string[:index] + part + string[index:]
 
 
-def sortCursors():
-    global textCursors
-    done = False
-    while not done:
-        done = True
-        for i in range(len(textCursors)):
-            if i < len(textCursors) - 1:
-                if textCursors[i].pos[1] > textCursors[i + 1].pos[1]:
-                    temp = textCursors[i]
-                    textCursors[i] = textCursor(textCursors[i + 1].pos)
-                    textCursors[i + 1] = textCursor(temp.pos)
-                    done = False
-                    
-        for i in range(len(textCursors)):
-            textCursors[i].index = i
-            
-    done = False     
-    while not done:
-        done = True
-        for i in range(len(textCursors)):
-            if i < len(textCursors) - 1:
-                if textCursors[i].pos[1] == textCursors[i + 1].pos[1] and\
-                     textCursors[i].pos[0] > textCursors[i + 1].pos[0]:
-                    temp = textCursors[i]
-                    textCursors[i] = textCursor(textCursors[i + 1].pos)
-                    textCursors[i + 1] = textCursor(temp.pos)
-                    done = False
-                    
-        for i in range(len(textCursors)):
-            textCursors[i].index = i
-    textCursors.reverse()
-
 global colors, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
        bottom, top, openFile, scale, tabWidth, textCursors
 pygame.init()
