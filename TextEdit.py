@@ -313,25 +313,18 @@ class textCursor:
             
         elif keyboard.keys[K_DOWN]:
             if self.pos[1] < len(files[openFile].lines):
-                self.pos[1] += 1
-                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
-                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                if self.pos[1] < len(files[openFile].lines) - 1:
+                    self.pos[1] += 1
+                    if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
+                        self.pos[0] = len(files[openFile].lines[self.pos[1]])
                     
         if keyboard.string != "":
-            for i in range(len(textCursors)):
-                if i != self.index:
-                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] >= self.pos[0]:
-                        textCursors[i].pos[0] += 1
+            
             files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += 1
-            
             files[openFile].updateLine(self.pos[1])
             
         if keyboard.keys[K_TAB]:
-            for i in range(len(textCursors)):
-                if i != self.index:
-                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] >= self.pos[0]:
-                            textCursors[i].pos[0] += tabWidth
             files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += tabWidth
             
@@ -343,50 +336,25 @@ class textCursor:
             files[openFile].lines.insert(self.pos[1] + 1, cut)
             files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
             files[openFile].updateLine(self.pos[1])
-            
-            count = 1
 
-            for i in range(len(textCursors)):
-                if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] < self.pos[0]:
-                    count += 1
-                if textCursors[i].pos[1] < self.pos[1]:
-                    count += 1
-
-            self.pos[1] += count
+            self.pos[1] += 1
             self.pos[0] = 0
-            sortCursors()
             
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
                 
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
-                
-                self.pos[0] -= 1
-                count = 0
-                for i in range(len(textCursors)):
-                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] > self.pos[0]:
-                        textCursors[i].pos[0] -= 1
-                    if textCursors[i].pos[0] == 0 and textCursors[i].pos[1] < self.pos[1]:
-                        count += 1
-                        
+               
                 files[openFile].updateLine(self.pos[1])
-                self.pos[1] -= count
-                sortCursors()
+                self.pos[0] -= 1
                 
             elif self.pos[1] > 0:
-                count = 1
-                for i in range(len(textCursors)):
-                    if self.pos[1] == textCursors[i].pos[1] and self.pos[0] < textCursors[i].pos[0]:
-                        textCursors[i].pos[1] -= 1
-                        textCursors[i].pos[0] += len(files[openFile].lines[self.pos[1] - 1])
-                    elif textCursors[i].pos[1] < self.pos[1]:
-                        count += 1
-
+                
                 self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
                 files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
-                self.pos[1] -= count
-                sortCursors()
+                files[openFile].updateLine(self.pos[1])
+                self.pos[1] -= 1
                 
 class Mouse:
     def __init__(self):
@@ -445,43 +413,16 @@ class Keyboard:
         self.last = [False] * 320
         self.modifiersK = [K_LCTRL, K_LSHIFT]
         self.modifiers = [False] * 2
-        self.blackList = [K_LSHIFT, ]
+        self.whiteList = [x for x in range(32, 127)]
+        self.blackList = [K_RETURN, K_BACKSPACE]
         self.string = ""
 
-    def buildString(self, event):
+    def buildString(self):
         self.string = ""
-        print event.unicode
-        if ord(event.unicode) in range(32, 255):
-            self.string += event.unicode
-##        for i in range(ord("a"), ord("z") + 1):
-##            if keyboard.keys[i]:
-##                if keyboard.modifiers[1]:
-##                    self.string += chr(i - 32)
-##                else:
-##                    self.string += chr(i)
-##
-##        for i in range(32, 48):
-##            if i != 45 and keyboard.keys[i]:
-##                self.string += chr(i)
-##
-##        for i in range(48, 58):
-##            if keyboard.keys[i]:
-##                if keyboard.modifiers[1]:
-##                    self.string += keyboard.keymap[i - 48]
-##                else:
-##                    self.string += chr(i)
-##
-##        if keyboard.keys[K_MINUS]:
-##            if keyboard.modifiers[1]:
-##                self.string += "_"
-##            else:
-##                self.string += "-"
-##
-##        elif keyboard.keys[K_EQUALS]:
-##            if keyboard.modifiers[1]:
-##                self.string += "="
-##            else:
-##                self.string += "+"
+        for i in range(32, 255):
+            if self.keys[i]:
+                if i in self.whiteList:
+                    self.string += chr(i)
         
     def pressRelease(self, key):
         return self.last[key] and not self.keys[key]
@@ -736,22 +677,21 @@ while run:
             run = False
 
         if event.type == KEYDOWN:
-            keyboard.buildString(event)
-            if event.key in range(len(keyboard.keys)):
-                keyboard.keys[event.key] = True
-                
-            for i in range(len(keyboard.modifiersK)):
-                if event.key == keyboard.modifiersK[i]:
-                    keyboard.modifiers[i] = True
             
-        if event.type == KEYUP:
-            keyboard.buildString(event)
-            if event.key in range(len(keyboard.keys)):
-                keyboard.keys[event.key] = False
+            if event.key not in keyboard.blackList and len(event.unicode) > 0:
+                if ord(event.unicode) in range(32, 127):
+                    keyboard.keys[ord(event.unicode)] = True
                 
-            for i in range(len(keyboard.modifiersK)):
-                if event.key == keyboard.modifiersK[i]:
-                    keyboard.modifiers[i] = False
+            else:
+                keyboard.keys[event.key] = True
+
+            if event.key in keyboard.modifiersK:
+                keyboard.modifiers[keyboard.modifiersK.index(event.key)] = True
+                
+        if event.type == KEYUP:
+            if event.key in keyboard.modifiersK:
+                keyboard.modifiers[keyboard.modifiersK.index(event.key)] = False
+
                 
         if event.type == MOUSEBUTTONDOWN:
             if event.button in range(len(mse.buttons)):
@@ -787,6 +727,7 @@ while run:
         
     
     mse.update()
+    keyboard.buildString()
     if on:
         if time >= onInterval:
             on = not on
@@ -822,17 +763,8 @@ while run:
         if not picked and xPos == 0 and i == nChars - 1:
             xPos = nChars
 
-        if keyboard.modifiers[0]:
-            textCursors.append(textCursor([xPos, yPos]))
-            #sort cursors
-            sortCursors()
-        else:
-            if len(textCursors) > 0:
-                for i in range(len(textCursors) - 1, 0, -1):
-                    textCursors.pop(i)
-                    i -= 1
-            textCursors[0].pos[0] = xPos
-            textCursors[0].pos[1] = yPos
+        textCursors[0].pos[0] = xPos
+        textCursors[0].pos[1] = yPos
     
     for i in range(len(textCursors)):
         textCursors[i].update()
