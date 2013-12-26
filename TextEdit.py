@@ -285,10 +285,13 @@ class imageDatabase:
         return images
 
 class textCursor:
-    def __init__(self, pos):
+    def __init__(self, pos, index = -1):
         self.pos = pos
-        self.index = len(textCursors)
-
+        if index == -1:
+            self.index = len(textCursors)
+        else:
+            self.index = index
+            
     def update(self):
         if keyboard.keys[K_RIGHT]:
             if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
@@ -336,26 +339,50 @@ class textCursor:
             files[openFile].lines.insert(self.pos[1] + 1, cut)
             files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
             files[openFile].updateLine(self.pos[1])
+            
+            count = 1
+
+            for i in range(len(textCursors)):
+                if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] < self.pos[0]:
+                    count += 1
+                if textCursors[i].pos[1] < self.pos[1]:
+                    count += 1
+
+            self.pos[1] += count
             self.pos[0] = 0
-            self.pos[1] += 1
+            sortCursors()
             
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
                 
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
+                
                 self.pos[0] -= 1
+                count = 0
                 for i in range(len(textCursors)):
-                    if i != self.index:
-                        if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] > self.pos[0]:
-                            textCursors[i].pos[0] -= 1
+                    if textCursors[i].pos[1] == self.pos[1] and textCursors[i].pos[0] > self.pos[0]:
+                        textCursors[i].pos[0] -= 1
+                    if textCursors[i].pos[0] == 0 and textCursors[i].pos[1] < self.pos[1]:
+                        count += 1
+                        
                 files[openFile].updateLine(self.pos[1])
+                self.pos[1] -= count
+                sortCursors()
                 
             elif self.pos[1] > 0:
-                
+                count = 1
+                for i in range(len(textCursors)):
+                    if self.pos[1] == textCursors[i].pos[1] and self.pos[0] < textCursors[i].pos[0]:
+                        textCursors[i].pos[1] -= 1
+                        textCursors[i].pos[0] += len(files[openFile].lines[self.pos[1] - 1])
+                    elif textCursors[i].pos[1] < self.pos[1]:
+                        count += 1
+
                 self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
                 files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
-                self.pos[1] -= 1
+                self.pos[1] -= count
+                sortCursors()
                 
 class Mouse:
     def __init__(self):
@@ -414,43 +441,43 @@ class Keyboard:
         self.last = [False] * 320
         self.modifiersK = [K_LCTRL, K_LSHIFT]
         self.modifiers = [False] * 2
-        self.keymap = [")", "!", "@", "#", "$", "%", "^", "&", "*", "("]
+        self.blackList = [K_LSHIFT, ]
         self.string = ""
 
-    def update(self):
-        self.buildString()
-
-    def buildString(self):
+    def buildString(self, event):
         self.string = ""
-        for i in range(ord("a"), ord("z") + 1):
-            if keyboard.keys[i]:
-                if keyboard.modifiers[1]:
-                    self.string += chr(i - 32)
-                else:
-                    self.string += chr(i)
-
-        for i in range(32, 48):
-            if i != 45 and keyboard.keys[i]:
-                self.string += chr(i)
-
-        for i in range(48, 58):
-            if keyboard.keys[i]:
-                if keyboard.modifiers[1]:
-                    self.string += keyboard.keymap[i - 48]
-                else:
-                    self.string += chr(i)
-
-        if keyboard.keys[K_MINUS]:
-            if keyboard.modifiers[1]:
-                self.string += "_"
-            else:
-                self.string += "-"
-
-        elif keyboard.keys[K_EQUALS]:
-            if keyboard.modifiers[1]:
-                self.string += "="
-            else:
-                self.string += "+"
+        print event.unicode
+        if ord(event.unicode) in range(32, 255):
+            self.string += event.unicode
+##        for i in range(ord("a"), ord("z") + 1):
+##            if keyboard.keys[i]:
+##                if keyboard.modifiers[1]:
+##                    self.string += chr(i - 32)
+##                else:
+##                    self.string += chr(i)
+##
+##        for i in range(32, 48):
+##            if i != 45 and keyboard.keys[i]:
+##                self.string += chr(i)
+##
+##        for i in range(48, 58):
+##            if keyboard.keys[i]:
+##                if keyboard.modifiers[1]:
+##                    self.string += keyboard.keymap[i - 48]
+##                else:
+##                    self.string += chr(i)
+##
+##        if keyboard.keys[K_MINUS]:
+##            if keyboard.modifiers[1]:
+##                self.string += "_"
+##            else:
+##                self.string += "-"
+##
+##        elif keyboard.keys[K_EQUALS]:
+##            if keyboard.modifiers[1]:
+##                self.string += "="
+##            else:
+##                self.string += "+"
         
     def pressRelease(self, key):
         return self.last[key] and not self.keys[key]
@@ -598,6 +625,39 @@ def inString(text, span):
 def strInsert(part, string, index):
     return string[:index] + part + string[index:]
 
+                
+
+def sortCursors():
+    global textCursors
+    done = False
+    while not done:
+        done = True
+        for i in range(len(textCursors)):
+            if i < len(textCursors) - 1:
+                if textCursors[i].pos[1] > textCursors[i + 1].pos[1]:
+                    temp = textCursors[i]
+                    textCursors[i] = textCursor(textCursors[i + 1].pos)
+                    textCursors[i + 1] = textCursor(temp.pos)
+                    done = False
+                    
+        for i in range(len(textCursors)):
+            textCursors[i].index = i
+            
+    done = False     
+    while not done:
+        done = True
+        for i in range(len(textCursors)):
+            if i < len(textCursors) - 1:
+                if textCursors[i].pos[1] == textCursors[i + 1].pos[1] and\
+                     textCursors[i].pos[0] > textCursors[i + 1].pos[0]:
+                    temp = textCursors[i]
+                    textCursors[i] = textCursor(textCursors[i + 1].pos)
+                    textCursors[i + 1] = textCursor(temp.pos)
+                    done = False
+                    
+        for i in range(len(textCursors)):
+            textCursors[i].index = i
+    textCursors.reverse()
 
 global colors, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
        bottom, top, openFile, scale, tabWidth, textCursors
@@ -622,7 +682,7 @@ syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
 imgDtb = imageDatabase(["assets/images/GUI"])
 
-files = [File("files/textEdit.py"),File("files/highlightTest.py"),File("files/test.py"),
+files = [File("files/highlightTest.py"),File("files/textEdit.py"),File("files/test.py"),
          File("files/SquaresInSpace.py")]
 
 guiItems = {}
@@ -660,6 +720,7 @@ offInterval = 400
 time = 0
 on = True
 while run:
+
     time += clock.get_time()
     mse.lastState = mse.clicked
     for i in range(len(keyboard.keys)):
@@ -671,6 +732,7 @@ while run:
             run = False
 
         if event.type == KEYDOWN:
+            keyboard.buildString(event)
             if event.key in range(len(keyboard.keys)):
                 keyboard.keys[event.key] = True
                 
@@ -679,6 +741,7 @@ while run:
                     keyboard.modifiers[i] = True
             
         if event.type == KEYUP:
+            keyboard.buildString(event)
             if event.key in range(len(keyboard.keys)):
                 keyboard.keys[event.key] = False
                 
@@ -709,8 +772,6 @@ while run:
             elif cursor + windh < bottom + top:
                 cursor += scale
 
-    
-    
     if mse.buttons[2]:
         if cursor >= 0 and cursor + windh <= bottom + top:
             cursor += (mse.lastpos[1][1] - mse.lastpos[0][1]) * 4
@@ -720,7 +781,7 @@ while run:
     elif cursor + windh > bottom + top and bottom - windh >= 0:
         cursor = bottom - windh + top
         
-    keyboard.update()
+    
     mse.update()
     if on:
         if time >= onInterval:
@@ -759,7 +820,8 @@ while run:
 
         if keyboard.modifiers[0]:
             textCursors.append(textCursor([xPos, yPos]))
-                
+            #sort cursors
+            sortCursors()
         else:
             if len(textCursors) > 0:
                 for i in range(len(textCursors) - 1, 0, -1):
@@ -768,7 +830,7 @@ while run:
             textCursors[0].pos[0] = xPos
             textCursors[0].pos[1] = yPos
     
-    for i in range(len(textCursors)-1, -1, -1):
+    for i in range(len(textCursors)):
         textCursors[i].update()
 
     for i in guiItems:
