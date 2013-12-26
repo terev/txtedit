@@ -230,6 +230,10 @@ class fontDatabase:
 
     def loadFont(self, font, size):
         return pygame.font.Font(self.path + "/" + font, size)
+
+    def setActiveByName(self, name):
+        self.active = self.fonts.index(name)
+        self.adjustScale(0)
         
     def adjustScale(self, size):
         global bottom, scale
@@ -625,7 +629,6 @@ def inString(text, span):
 def strInsert(part, string, index):
     return string[:index] + part + string[index:]
 
-                
 
 def sortCursors():
     global textCursors
@@ -671,12 +674,6 @@ top, bottom = 30, 0
 drawLineN = True
 
 screen = pygame.display.set_mode([windw, windh])
-colors = {}
-colors["blue"] = [0, 0, 255]
-colors["red"] = [255, 0, 0]
-colors["orange"] = [255, 165, 0]
-colors["purple"] = [160, 3, 240]
-colors["def"] = [0, 0, 0]
 
 syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 18)
@@ -685,13 +682,6 @@ imgDtb = imageDatabase(["assets/images/GUI"])
 files = [File("files/highlightTest.py"),File("files/textEdit.py"),
          File("files/test.py"),File("files/SquaresInSpace.py")]
 
-guiItems = {}
-
-#font selector drop down
-guiItems["fontSelector"] = DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active)
-
-#line numbers toggle
-guiItems["lnToggle"] = CheckBox([20, 0], [20, 20], True)
 
 #open file index
 openFile = 0
@@ -716,6 +706,52 @@ tabWidth = 4
 #Cursor blink on and off intervals
 onInterval = 500
 offInterval = 400
+
+#LOAD DEFAULTS
+themeFile = open("user/themes/prop/default.tme")
+line = themeFile.readline().rstrip('\n')
+while line:
+    split = line.split('|')
+    if line=="GROUPCOLOURS":
+        colors = {}
+        line = themeFile.readline().rstrip('\n').lstrip('\t')
+        while line!="/GROUPCOLOURS":
+            split = line.split('|')
+            colors[split[0]] = map(int,split[1].split(','))
+            line = themeFile.readline().rstrip('\n').lstrip('\t')
+    elif split[0]=="LINENUMBERS":
+        drawLineN=bool(int(split[1]))
+    if split[0]=="BODYFONT":
+        fontDtb.setActiveByName(split[1])
+    line = themeFile.readline().rstrip('\n')
+themeFile.close()
+#LOAD CUSTOM PARTIAL FILE
+themeFile = open("user/themes/custom/test.tme")
+line = themeFile.readline().rstrip('\n')
+while line:
+    split = line.split('|')
+    if line=="GROUPCOLOURS":
+        line = themeFile.readline().rstrip('\n').lstrip('\t')
+        while line!="/GROUPCOLOURS":
+            split = line.split('|')
+            colors[split[0]] = map(int,split[1].split(','))
+            line = themeFile.readline().rstrip('\n').lstrip('\t')
+    elif split[0]=="LINENUMBERS":
+        drawLineN=bool(int(split[1]))
+    if split[0]=="BODYFONT":
+        fontDtb.setActiveByName(split[1])
+    line = themeFile.readline().rstrip('\n')
+themeFile.close()
+
+
+
+guiItems = {}
+
+#font selector drop down
+guiItems["fontSelector"] = DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active)
+
+#line numbers toggle
+guiItems["lnToggle"] = CheckBox([20, 0], [20, 20], drawLineN)
 
 time = 0
 on = True
