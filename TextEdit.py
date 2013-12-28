@@ -1,5 +1,9 @@
-import pygame, re, os
+import pygame, re, os, mouseHandler, keyboardHandler, Image, guiHandler
 from pygame.locals import *
+from mouseHandler import *
+from keyboardHandler import *
+from guiHandler import *
+from Image import *
 
 class File:
     def __init__(self, path):
@@ -38,12 +42,12 @@ class File:
             final = []
 
             for l in range(len(found)):
-                if found[l] != "":
+
                     if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
                         keysIn.append(found[l])
                         indeces.append(findAll(found[l], line))
 
-            if len(keysIn) == 0:
+            if len(indeces) == 0:
                 return [[False, line]]
             
             else:
@@ -54,7 +58,6 @@ class File:
                 string = ""
                 k = 0
                 while k < len(line):
-                    added = False
                     for j in range(len(indeces)):
                         if k in indeces[j]:
                             if string != "":
@@ -116,9 +119,9 @@ class File:
 
             for w in range(len(self.parsed[i])):
                 if self.parsed[i][w][0]:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors[self.parsed[i][w][2]])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colors[self.parsed[i][w][2]])
                 else:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors["def"])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colors["def"])
                 screen.blit(surface, [x, i * fontDtb.height - cursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
                 
@@ -246,48 +249,51 @@ class fontDatabase:
     def updateFont(self):
         self.selected = self.fonts[self.active]
 
+class themeDatabase:
+    def __init__(self, paths, name = "default"):
+        self.themeNames = []
+        for path in paths:
+            self.themeNames.append([path] + os.listdir(path))
+        self.active = [0, 1]
+        self.setActiveByName(name)
+    
+    def setActiveByName(self, name):
+        for i in range(len(self.themeNames)):
+            if self.themeNames[i].count(name + ".tme") > 0:
+                self.active[0] = i
+                self.active[1] = self.themeNames[i].index(name + ".tme")
+                self.colors = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
 
-class image:
-    def __init__(self, path):
-        self.path = path
-        try:
-            self.image = pygame.image.load(self.path).convert_alpha()
-        except:
-            raise Exception
-            return
-        self.width = self.image.get_rect()[2]
-        self.height = self.image.get_rect()[3]
-
-class imageDatabase:
-
-    def __init__(self, paths):
-        self.paths = paths
-        self.imgGroups = {}
-        for i in range(len(self.paths)):
-            groupName = self.paths[i].split("/")[-1]
-            if groupName not in self.imgGroups:
-                self.imgGroups[groupName] = self.loadImages(self.paths[i])
+    def loadTheme(self, path):
+        themeFile = open(path)
+        line = themeFile.readline().rstrip('\n')
+        colors = {}
+        while line:
+            split = line.split('|')
+            if line=="GROUPCOLOURS":
+                line = themeFile.readline().rstrip('\n').lstrip('\t')
+                while line!="/GROUPCOLOURS":
+                    split = line.split('|')
+                    colors[split[0]] = map(int,split[1].split(','))
+                    line = themeFile.readline().rstrip('\n').lstrip('\t')
+            elif split[0]=="LINENUMBERS":
+                drawLineN=bool(int(split[1]))
+            if split[0]=="BODYFONT":
+                fontDtb.setActiveByName(split[1])
+            line = themeFile.readline().rstrip('\n')
+        themeFile.close()
+        return colors
+##        
+##class imageDatabase:
+##
+##    def __init__(self, paths):
+##        self.paths = paths
+##        self.imgGroups = {}
+##        for i in range(len(self.paths)):
+##            groupName = self.paths[i].split("/")[-1]
+##            if groupName not in self.imgGroups:
+##                self.imgGroups[groupName] = self.loadImages(self.paths[i])
                 
-    def loadImages(self, path):
-        images = {}
-        try:
-            imgList = os.listdir(path)
-        except:
-            warn("Access Denied to " + path)
-
-        for i in range(len(imgList)):
-            try:
-                img = image(path + "/" + imgList[i])
-            except:
-                warn("Cannot load asset " + path + "/" + imgList[i])
-                continue
-            name = imgList[i].split(".")[0]
-            if name not in images:
-                images[name] = img
-            else:
-                warn("Asset already loaded " + name)
-        return images
-
 class textCursor:
     def __init__(self, pos, index = -1):
         self.pos = pos
@@ -355,175 +361,6 @@ class textCursor:
                 files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
                 files[openFile].updateLine(self.pos[1])
                 self.pos[1] -= 1
-                
-class Mouse:
-    def __init__(self):
-        self.clickPos = (0, 0)
-        self.clicked = False
-        self.pos = (0, 0)
-        self.clickRelease = False
-        self.lastState = False
-        self.buttons = [False] * 6
-        self.lastClick = -1
-        self.doubleClick = False
-        self.lastpos = [[0, 0], [0, 0]]
-        
-    def update(self):
-        global clock
-        
-        self.pos = pygame.mouse.get_pos()
-        
-        self.lastpos[1][0] = self.lastpos[0][0]
-        self.lastpos[1][1] = self.lastpos[0][1]
-        self.lastpos[0][0] = self.pos[0]
-        self.lastpos[0][1] = self.pos[1]
-        
-        self.clicked = self.buttons[1]
-
-        self.clickRelease = False
-        self.doubleClick = False
-        
-        if not self.clicked and self.lastState:
-            self.clickRelease = True
-            self.lastState = False
-            
-        if self.clickRelease:
-            if self.lastClick != -1:
-                if (pygame.time.get_ticks() / 1000.) - self.lastClick <= 0.25:
-                    self.doubleClick = True
-                self.lastClick = -1
-            else:
-                self.lastClick = pygame.time.get_ticks() / 1000.0
-        else:
-            if self.lastClick != -1:
-                if (pygame.time.get_ticks() / 1000.0) - self.lastClick > 0.25:
-                    self.lastClick = -1
-                
-        if not self.lastState and self.clicked:
-            self.clickPos = pygame.mouse.get_pos()
-            
-    def difPos(self):
-        if self.pos[0] != self.clickPos[0] and self.pos[1] != self.clickPos[1]:
-            return True
-        return False
-
-class Keyboard:
-    def __init__(self):
-        self.keys = [False] * 320
-        self.last = [False] * 320
-        self.modifiersK = [K_LCTRL, K_LSHIFT]
-        self.modifiers = [False] * 2
-        self.whiteList = [x for x in range(32, 127)]
-        self.blackList = [K_RETURN, K_BACKSPACE]
-        self.string = ""
-
-    def buildString(self):
-        self.string = ""
-        for i in range(32, 255):
-            if self.keys[i]:
-                if i in self.whiteList:
-                    self.string += chr(i)
-        
-    def pressRelease(self, key):
-        return self.last[key] and not self.keys[key]
-
-    def newPress(self, key):
-        return not self.last[key] and self.keys[key]
-
-class Control:
-    def __init__(self, pos, size):
-        self.pos = pos
-        self.size = size
-
-    #only virtual
-    def update(self):
-        pass
-
-    #only virtual
-    def draw(self):
-        pass
-
-class DropDown(Control):
-    def __init__(self, pos, size, items = [], selected = -1):
-        Control.__init__(self, pos, size)
-        self.items = items
-        self.dropButton = Button([self.pos[0] + self.size[0], self.pos[1]], [self.size[1], self.size[1]], True, [0, 0, 0], imgDtb.imgGroups["GUI"]["DropDown"])
-        self.dropOpen = False
-        self.selected = selected
-        
-    def update(self):
-        self.dropButton.update()
-        if self.dropButton.activated:
-            self.dropOpen = not self.dropOpen
-
-        if self.dropOpen and mse.clickRelease:
-            for i in range(len(self.items)):
-                if pygame.Rect(mse.pos[0], mse.pos[1], 1, 1).colliderect(pygame.Rect(self.pos[0] + 2, self.pos[1] + self.size[1] + i * fontDtb.guiHeight, self.size[0], fontDtb.guiHeight)):
-                    self.selected = i
-                    self.dropOpen = False
-                    break
-
-    def draw(self):
-        global screen, fontDtb
-        if self.selected != -1:
-            txt = fontDtb.guiFont.render(self.items[self.selected], 20, [0, 0, 0])
-            screen.blit(txt, [self.pos[0] + 2, self.pos[1]])
-
-        if self.dropOpen:
-            pygame.draw.rect(screen, [0, 0, 0], [self.pos[0], self.pos[1] + self.size[1], self.size[0], fontDtb.guiHeight * len(self.items)], 2)
-            for i in range(len(self.items)):
-                txtSurf = fontDtb.guiFont.render(self.items[i], 20, [0, 0, 0])
-                screen.blit(txtSurf, [self.pos[0] + 2, self.pos[1] + self.size[1] + i * fontDtb.guiHeight])
-            
-        pygame.draw.rect(screen, [0, 0, 0], [self.pos[0], self.pos[1], self.size[0], self.size[1]], 2)
-        self.dropButton.draw()
-            
-class Button(Control):
-    def __init__(self, pos, size, doOffset = True, colour = [0, 0, 0], image = None):
-        Control.__init__(self, pos, size)
-        self.colour = colour
-        self.clicked = False
-        self.icon = image
-        self.activated = False
-        if doOffset:
-            self.offset = 1
-        else:
-            self.offset = 0
-
-    def update(self):
-        self.clicked = False
-        self.activated = False
-        if pygame.Rect(mse.pos[0], mse.pos[1], 1, 1).colliderect(pygame.Rect(self.pos[0], self.pos[1], self.size[0], self.size[1])):
-            if mse.clicked:
-                self.clicked = True
-            elif mse.clickRelease:
-                self.activated = True
-
-    def draw(self):
-        if self.clicked:
-            pygame.draw.rect(screen, self.colour, [self.pos[0] + self.offset, self.pos[1] - self.offset, self.size[0], self.size[1]], 2)
-            if self.icon != None:
-                screen.blit(self.icon.image, (self.pos[0] - self.icon.width / 2 + self.offset + self.size[0] / 2, self.pos[1] - self.icon.height / 2 - self.offset + self.size[1] / 2))
-        else:
-            pygame.draw.rect(screen, self.colour, [self.pos[0], self.pos[1], self.size[0], self.size[1]], 2)
-            if self.icon != None:
-                screen.blit(self.icon.image, (self.pos[0] - self.icon.width / 2 + self.size[0] / 2, self.pos[1] - self.icon.height / 2 + self.size[1] / 2))
-
-class CheckBox(Control):
-    def __init__(self, pos, size, state):
-        Control.__init__(self, pos, size)
-        self.buttonActivator = Button(pos, size, False)
-        self.state = state
-
-    def update(self):
-        self.buttonActivator.update()
-        if self.buttonActivator.activated:
-            self.state = not self.state
-            
-    def draw(self):
-        self.buttonActivator.draw()
-        if self.state:
-            pygame.draw.rect(screen, [0, 0, 0], [self.pos[0] + 4, self.pos[1] + 4, self.size[0] - 8, self.size[1] - 8], 0)
 
 def warn(string):
     print "warn -", string
@@ -544,6 +381,22 @@ def findAll(string, text):
                 matches.append(match.span()[0])
 
     return matches
+
+def loadImages(path):
+    extWhitelist = ["jpg", "png"]
+    images = {}
+    try:
+        imgList = os.listdir(path)
+    except:
+        warn("Access Denied to " + path)
+
+    for i in range(len(imgList)):
+        name = imgList[i].split(".")[0]
+        ext = imgList[i].split(".")[-1]
+        if name not in images and ext in extWhitelist:
+            images[name] = img(pygame.image.load(path + "/" + imgList[i]).convert_alpha())
+
+    return images
 
 def isAlpha(char):
     return ord(char) in range(ord("a"), ord("z") + 1) or\
@@ -572,7 +425,8 @@ def strInsert(part, string, index):
 
 
 global colors, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
-       bottom, top, openFile, scale, tabWidth, textCursors
+       bottom, top, openFile, scale, tabWidth, textCursors, openFile, dtb
+
 pygame.init()
 windw, windh = 1900, 980
 
@@ -584,21 +438,22 @@ drawLineN = True
 
 screen = pygame.display.set_mode([windw, windh])
 
+#open file index
+openFile = 0
+
 syntaxDtb = syntaxDatabase("manifest.txt")
-fontDtb = fontDatabase("assets/fonts", 18)
-imgDtb = imageDatabase(["assets/images/GUI"])
 
 files = [File("files/highlightTest.py"),File("files/textEdit.py"),
          File("files/test.py"),File("files/SquaresInSpace.py")]
 
-
-#open file index
-openFile = 0
+fontDtb = fontDatabase("assets/fonts", 18)
+#imgDtb = imageDatabase(["assets/images/GUI"])
+themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"])
 
 #vertical scroll pos
 cursor = 0
 
-mse = Mouse()
+mouse = Mouse()
 keyboard = Keyboard()
 textCursors = []
 textCursors.append(textCursor([0, 0]))
@@ -608,6 +463,11 @@ fontDtb.adjustScale(0)
 scale = 100
 pygame.key.set_repeat(250, 30)
 clock = pygame.time.Clock()
+
+guiComponents = guiManager(loadImages("assets/images/GUI"))
+guiComponents.setFont(fontDtb.guiFont)
+guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active), "fontSelector")
+guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 #spaces in a tab
 tabWidth = 4
@@ -634,6 +494,7 @@ while line:
         fontDtb.setActiveByName(split[1])
     line = themeFile.readline().rstrip('\n')
 themeFile.close()
+
 #LOAD CUSTOM PARTIAL FILE
 themeFile = open("user/themes/custom/test.tme")
 line = themeFile.readline().rstrip('\n')
@@ -652,22 +513,11 @@ while line:
     line = themeFile.readline().rstrip('\n')
 themeFile.close()
 
-
-
-guiItems = {}
-
-#font selector drop down
-guiItems["fontSelector"] = DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active)
-
-#line numbers toggle
-guiItems["lnToggle"] = CheckBox([20, 0], [20, 20], drawLineN)
-
 time = 0
 on = True
 while run:
-
     time += clock.get_time()
-    mse.lastState = mse.clicked
+    mouse.lastState = mouse.clicked
     for i in range(len(keyboard.keys)):
         keyboard.last[i] = keyboard.keys[i]
         keyboard.keys[i] = False
@@ -676,8 +526,13 @@ while run:
         if event.type == QUIT:
             run = False
 
-        if event.type == KEYDOWN:
+        if event.type == MOUSEBUTTONUP:
+            mouse.eventUpdate(event)
             
+        if event.type == MOUSEBUTTONDOWN:
+            mouse.eventUpdate(event)
+            
+        if event.type == KEYDOWN:
             if event.key not in keyboard.blackList and len(event.unicode) > 0:
                 if ord(event.unicode) in range(32, 127):
                     keyboard.keys[ord(event.unicode)] = True
@@ -691,24 +546,15 @@ while run:
         if event.type == KEYUP:
             if event.key in keyboard.modifiersK:
                 keyboard.modifiers[keyboard.modifiersK.index(event.key)] = False
-
-                
-        if event.type == MOUSEBUTTONDOWN:
-            if event.button in range(len(mse.buttons)):
-                mse.buttons[event.button] = True
-
-        elif event.type == MOUSEBUTTONUP:
-            if event.button in range(len(mse.buttons)):
-                mse.buttons[event.button] = False
-                    
-        if mse.buttons[4]:
+    
+        if mouse.buttons[4]:
             if keyboard.modifiers[0]:
                 fontDtb.adjustScale(2)
                 
             elif  cursor > 0:
                 cursor -= scale
                 
-        elif mse.buttons[5]:
+        elif mouse.buttons[5]:
             if keyboard.modifiers[0]:
                 if fontDtb.fontSize - 2  > 2:
                     fontDtb.adjustScale(-2)
@@ -716,9 +562,9 @@ while run:
             elif cursor + windh < bottom + top:
                 cursor += scale
 
-    if mse.buttons[2]:
+    if mouse.buttons[2]:
         if cursor >= 0 and cursor + windh <= bottom + top:
-            cursor += (mse.lastpos[1][1] - mse.lastpos[0][1]) * 4
+            cursor += (mouse.lastpos[1][1] - mouse.lastpos[0][1]) * 4
 
     if cursor < 0:
         cursor = 0
@@ -726,7 +572,7 @@ while run:
         cursor = bottom - windh + top
         
     
-    mse.update()
+    mouse.update()
     keyboard.buildString()
     if on:
         if time >= onInterval:
@@ -737,9 +583,9 @@ while run:
             on = not on
             time = 0
             
-    if  mse.clicked and not mse.lastState and mse.pos[1] > top:
+    if  mouse.clicked and not mouse.lastState and mouse.pos[1] > top:
         xPos = 0
-        yPos = (mse.pos[1] + cursor - top) / fontDtb.height
+        yPos = (mouse.pos[1] + cursor - top) / fontDtb.height
         nLines = len(files[openFile].lines)
         if yPos > nLines - 1:
             yPos = nLines - 1
@@ -754,7 +600,7 @@ while run:
         sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
         picked = False
         for i in range(nChars):
-            if pygame.Rect(mse.pos[0], mse.pos[1] + cursor - top, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
+            if pygame.Rect(mouse.pos[0], mouse.pos[1] + cursor - top, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
                 xPos = i
                 picked = True
                 break
@@ -769,12 +615,11 @@ while run:
     for i in range(len(textCursors)):
         textCursors[i].update()
 
-    for i in guiItems:
-        guiItems[i].update()
+    guiComponents.update(mouse)
         
-    drawLineN = guiItems["lnToggle"].state
-    if guiItems["fontSelector"].selected != -1:
-        fontDtb.active = guiItems["fontSelector"].selected
+    drawLineN = guiComponents.items["lnToggle"].state
+    if guiComponents.items["fontSelector"].newSelection() and guiComponents.items["fontSelector"].selected != -1:
+        fontDtb.active = guiComponents.items["fontSelector"].selected
         fontDtb.adjustScale(0)
 
     screen.fill([255, 255, 255])
@@ -784,8 +629,7 @@ while run:
     pygame.draw.rect(screen, [255, 255, 255], [0, 0, windw, top], 0)
     
     #Draw all gui items
-    for i in guiItems:
-        guiItems[i].draw()
+    guiComponents.draw(screen)
         
     pygame.display.update()
     clock.tick()
