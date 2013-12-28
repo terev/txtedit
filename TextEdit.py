@@ -62,7 +62,7 @@ class File:
                         if k in indeces[j]:
                             if string != "":
                                 final.append([False, string])
-                            final.append([True, keysIn[j], syntaxDtb.active.wordColor(keysIn[j])])
+                            final.append([True, keysIn[j], syntaxDtb.active.wordColour(keysIn[j])])
                             string = ""
                             k += len(keysIn[j])
                             break
@@ -119,9 +119,9 @@ class File:
 
             for w in range(len(self.parsed[i])):
                 if self.parsed[i][w][0]:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colors[self.parsed[i][w][2]])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours[self.parsed[i][w][2]])
                 else:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colors["def"])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours["def"])
                 screen.blit(surface, [x, i * fontDtb.height - cursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
                 
@@ -136,8 +136,8 @@ class File:
                                                          textCursors[i].pos[1] * fontDtb.height + 2 + top - cursor, 2, fontDtb.height - 4], 0)
         
 class keyGroup:
-    def __init__(self, color, words):
-        self.color = color
+    def __init__(self, colour, words):
+        self.colour = colour
         self.words = words
     
 class highlight:
@@ -158,7 +158,7 @@ class highlight:
         contents = config.read()
         config.close()
         contents = " ".join(contents.split("\n"))
-        knownColors = []
+        knownColours = []
         cur = 0
         parsed = re.findall(r'([A-Za-z][^{}]*)', contents)
         parts = []
@@ -167,17 +167,17 @@ class highlight:
             parts.append([re.findall(r"\w+", parsed[i])[0], re.findall(r"\w+", parsed[i + 1])])
             
         for i in range(len(parts)):
-            if parts[i][0] not in knownColors:
-                knownColors.append(parts[i][0])
+            if parts[i][0] not in knownColours:
+                knownColours.append(parts[i][0])
                 self.groups.append(keyGroup(parts[i][0], parts[i][1]))
             else:
                 for word in parts[i][1]:
-                    self.groups[knownColors.index(parts[i][0])].words.append(word)
+                    self.groups[knownColours.index(parts[i][0])].words.append(word)
 
-    def wordColor(self, word):
+    def wordColour(self, word):
         for i in range(len(self.groups)):
             if self.groups[i].words.count(word) > 0:
-                return self.groups[i].color
+                return self.groups[i].colour
         return -1
 
 class syntaxDatabase:
@@ -262,19 +262,19 @@ class themeDatabase:
             if self.themeNames[i].count(name + ".tme") > 0:
                 self.active[0] = i
                 self.active[1] = self.themeNames[i].index(name + ".tme")
-                self.colors = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
+                self.colours = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
 
     def loadTheme(self, path):
         themeFile = open(path)
         line = themeFile.readline().rstrip('\n')
-        colors = {}
+        colours = {}
         while line:
             split = line.split('|')
             if line=="GROUPCOLOURS":
                 line = themeFile.readline().rstrip('\n').lstrip('\t')
                 while line!="/GROUPCOLOURS":
                     split = line.split('|')
-                    colors[split[0]] = map(int,split[1].split(','))
+                    colours[split[0]] = map(int,split[1].split(','))
                     line = themeFile.readline().rstrip('\n').lstrip('\t')
             elif split[0]=="LINENUMBERS":
                 drawLineN=bool(int(split[1]))
@@ -282,7 +282,7 @@ class themeDatabase:
                 fontDtb.setActiveByName(split[1])
             line = themeFile.readline().rstrip('\n')
         themeFile.close()
-        return colors
+        return colours
 ##        
 ##class imageDatabase:
 ##
@@ -424,7 +424,7 @@ def strInsert(part, string, index):
     return string[:index] + part + string[index:]
 
 
-global colors, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
+global colours, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
        bottom, top, openFile, scale, tabWidth, textCursors, openFile, dtb
 
 pygame.init()
@@ -477,41 +477,41 @@ onInterval = 500
 offInterval = 400
 
 #LOAD DEFAULTS
-themeFile = open("user/themes/prop/default.tme")
-line = themeFile.readline().rstrip('\n')
-while line:
-    split = line.split('|')
-    if line=="GROUPCOLOURS":
-        colors = {}
-        line = themeFile.readline().rstrip('\n').lstrip('\t')
-        while line!="/GROUPCOLOURS":
-            split = line.split('|')
-            colors[split[0]] = map(int,split[1].split(','))
-            line = themeFile.readline().rstrip('\n').lstrip('\t')
-    elif split[0]=="LINENUMBERS":
-        drawLineN=bool(int(split[1]))
-    if split[0]=="BODYFONT":
-        fontDtb.setActiveByName(split[1])
-    line = themeFile.readline().rstrip('\n')
-themeFile.close()
-
-#LOAD CUSTOM PARTIAL FILE
-themeFile = open("user/themes/custom/test.tme")
-line = themeFile.readline().rstrip('\n')
-while line:
-    split = line.split('|')
-    if line=="GROUPCOLOURS":
-        line = themeFile.readline().rstrip('\n').lstrip('\t')
-        while line!="/GROUPCOLOURS":
-            split = line.split('|')
-            colors[split[0]] = map(int,split[1].split(','))
-            line = themeFile.readline().rstrip('\n').lstrip('\t')
-    elif split[0]=="LINENUMBERS":
-        drawLineN=bool(int(split[1]))
-    if split[0]=="BODYFONT":
-        fontDtb.setActiveByName(split[1])
-    line = themeFile.readline().rstrip('\n')
-themeFile.close()
+##themeFile = open("user/themes/prop/default.tme")
+##line = themeFile.readline().rstrip('\n')
+##while line:
+##    split = line.split('|')
+##    if line=="GROUPCOLOURS":
+##        colours = {}
+##        line = themeFile.readline().rstrip('\n').lstrip('\t')
+##        while line!="/GROUPCOLOURS":
+##            split = line.split('|')
+##            colours[split[0]] = map(int,split[1].split(','))
+##            line = themeFile.readline().rstrip('\n').lstrip('\t')
+##    elif split[0]=="LINENUMBERS":
+##        drawLineN=bool(int(split[1]))
+##    if split[0]=="BODYFONT":
+##        fontDtb.setActiveByName(split[1])
+##    line = themeFile.readline().rstrip('\n')
+##themeFile.close()
+##
+###LOAD CUSTOM PARTIAL FILE
+##themeFile = open("user/themes/custom/test.tme")
+##line = themeFile.readline().rstrip('\n')
+##while line:
+##    split = line.split('|')
+##    if line=="GROUPCOLOURS":
+##        line = themeFile.readline().rstrip('\n').lstrip('\t')
+##        while line!="/GROUPCOLOURS":
+##            split = line.split('|')
+##            colours[split[0]] = map(int,split[1].split(','))
+##            line = themeFile.readline().rstrip('\n').lstrip('\t')
+##    elif split[0]=="LINENUMBERS":
+##        drawLineN=bool(int(split[1]))
+##    if split[0]=="BODYFONT":
+##        fontDtb.setActiveByName(split[1])
+##    line = themeFile.readline().rstrip('\n')
+##themeFile.close()
 
 time = 0
 on = True
