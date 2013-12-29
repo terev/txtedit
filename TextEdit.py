@@ -51,10 +51,20 @@ class File:
                 indeces.append([match.span()[0]])
                 keysIn.append(match.group())
 
-        special = re.findall(r"[\'|\"]+.*?[\'|\"]", line) + re.findall(r"\-?[0-9]+\.?[0-9]*", line)
+        special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"\-?[0-9]+\.?[0-9]*", line)
         for i in range(len(special)):
             cur = []
-            for match in re.finditer(special[i], line):
+            padded = ""
+            spans = []
+            for match in re.finditer("\W", special[i]):
+                spans.append(match.span()[0])
+            for j in range(len(special[i])):
+                if j in spans:
+                    padded += "\\" + special[i][j]
+                else:
+                    padded += special[i][j]
+
+            for match in re.finditer(padded, line):
                 cur.append(match.span()[0])
             indeces.append(cur)
             keysIn.append(special[i])
@@ -65,7 +75,7 @@ class File:
             for l in range(len(found)):
                 if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
                     keysIn.append(found[l])
-                    indeces.append(findAll(found[l], line))
+                    indeces.append(findAllKeys(found[l], line))
 
         if len(indeces) == 0:
             return [[False, line]]
@@ -353,19 +363,22 @@ class textCursor:
                     self.pos[1] += 1
                     if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
                         self.pos[0] = len(files[openFile].lines[self.pos[1]])
-                    
+        
+        #add string to cur line in place
         if keyboard.string != "":
             
             files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += len(keyboard.string)
             files[openFile].updateLine(self.pos[1])
-            
-        if keyboard.keys[K_TAB]:
+
+        #shift line in cursor place by tab width amount
+        elif keyboard.keys[K_TAB]:
             files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
             self.pos[0] += tabWidth
             
             files[openFile].updateLine(self.pos[1])
-             
+
+        #cut line in cursor place and move to new line
         elif keyboard.keys[K_RETURN]:
             cut = files[openFile].lines[self.pos[1]][self.pos[0]:]
             files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]]
@@ -373,20 +386,26 @@ class textCursor:
             files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
             files[openFile].updateLine(self.pos[1])
 
+            #shift cursor pos down a line and to the start
             self.pos[1] += 1
             self.pos[0] = 0
 
+        #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
+            #delete chars on same line
             if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
                 files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]] +\
                                                      files[openFile].lines[self.pos[1]][self.pos[0] + 1:]
                 files[openFile].updateLine(self.pos[1])
-                
+
+            #merge line below onto current line
             elif self.pos[1] < len(files[openFile].lines):
                 files[openFile].mergeLines(self.pos[1], self.pos[1] + 1)
                 files[openFile].updateLine(self.pos[1])
-                
+
+        #delete chars before cursor
         elif keyboard.keys[K_BACKSPACE]:
+            #delete chars on cur line
             if self.pos[0] > 0:
                 
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
@@ -394,7 +413,8 @@ class textCursor:
                
                 files[openFile].updateLine(self.pos[1])
                 self.pos[0] -= 1
-                
+
+            #merge cur line onto line above
             elif self.pos[1] > 0:
                 
                 self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
@@ -405,7 +425,7 @@ class textCursor:
 def warn(string):
     print "warn -", string
 
-def findAll(string, text):
+def findAllKeys(string, text):
     matches = []
     for match in re.finditer(string , text):
         if not inString(text, match.span()):
