@@ -1,5 +1,9 @@
 import pygame, re, os
 from pygame.locals import *
+from mouseHandler import *
+from keyboardHandler import *
+from guiHandler import *
+from imageStruct import *
 
 class File:
     def __init__(self, path):
@@ -31,19 +35,18 @@ class File:
             
     def parseLine(self, line):
         global syntaxDtb
+        print  re.findall(r'\"\w+\"', line)
         found = re.findall(r"\b(\w+\b)", line)
         if len(found) > 0:
             keysIn = []
             indeces = []
             final = []
-
             for l in range(len(found)):
-                if found[l] != "":
                     if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
                         keysIn.append(found[l])
                         indeces.append(findAll(found[l], line))
 
-            if len(keysIn) == 0:
+            if len(indeces) == 0:
                 return [[False, line]]
             
             else:
@@ -54,12 +57,11 @@ class File:
                 string = ""
                 k = 0
                 while k < len(line):
-                    added = False
                     for j in range(len(indeces)):
                         if k in indeces[j]:
                             if string != "":
                                 final.append([False, string])
-                            final.append([True, keysIn[j], syntaxDtb.active.wordColor(keysIn[j])])
+                            final.append([True, keysIn[j], syntaxDtb.active.wordColour(keysIn[j])])
                             string = ""
                             k += len(keysIn[j])
                             break
@@ -91,9 +93,12 @@ class File:
         
         
     def drawFile(self):
-        buff = 5
-        largest = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
-        pygame.draw.rect(screen, [200, 200, 200], [0, top, largest, windh], 0)
+        sideBuff = 0
+        buff = 0
+        if drawLineN:
+            buff = 5
+            sideBuff = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
+            pygame.draw.rect(screen, [200, 200, 200], [0, top, sideBuff, windh], 0)
 
         #Screen scope range
         scope = range(cursor / fontDtb.height, ((cursor + windh) / fontDtb.height) \
@@ -101,32 +106,39 @@ class File:
         
         for i in scope:
             x = 0
-            lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
-            screen.blit(lineN, [x + 2, i * fontDtb.height - cursor + top])
-            x += largest + buff
-             
+            if drawLineN:
+                lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
+                screen.blit(lineN, [x + 2, i * fontDtb.height - cursor + top])
+                x += sideBuff + buff
+            
+            for j in range(len(textCursors)):
+                if textCursors[j].pos[1] == i:
+                    pygame.draw.rect(screen, [240, 240, 240], [x, i * fontDtb.height - cursor + top, windw - x - 5, fontDtb.height], 0)
+                    break
+
             for w in range(len(self.parsed[i])):
-               
                 if self.parsed[i][w][0]:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors[self.parsed[i][w][2]])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours[self.parsed[i][w][2]])
                 else:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, colors["def"])
+                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours["def"])
                 screen.blit(surface, [x, i * fontDtb.height - cursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
                 
         if on:
+            temp = 0
+            if drawLineN:
+                temp = 4
             for i in range(len(textCursors)):
                 if textCursors[i].pos[1] in scope:
                     cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
-                    pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + largest + 4, \
+                    pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + sideBuff + temp, \
                                                          textCursors[i].pos[1] * fontDtb.height + 2 + top - cursor, 2, fontDtb.height - 4], 0)
         
 class keyGroup:
-    def __init__(self, color, words):
-        self.color = color
+    def __init__(self, colour, words):
+        self.colour = colour
         self.words = words
     
-
 class highlight:
     def __init__(self, name, path, extenstions):
         self.name = name
@@ -145,7 +157,7 @@ class highlight:
         contents = config.read()
         config.close()
         contents = " ".join(contents.split("\n"))
-        knownColors = []
+        knownColours = []
         cur = 0
         parsed = re.findall(r'([A-Za-z][^{}]*)', contents)
         parts = []
@@ -154,17 +166,17 @@ class highlight:
             parts.append([re.findall(r"\w+", parsed[i])[0], re.findall(r"\w+", parsed[i + 1])])
             
         for i in range(len(parts)):
-            if parts[i][0] not in knownColors:
-                knownColors.append(parts[i][0])
+            if parts[i][0] not in knownColours:
+                knownColours.append(parts[i][0])
                 self.groups.append(keyGroup(parts[i][0], parts[i][1]))
             else:
                 for word in parts[i][1]:
-                    self.groups[knownColors.index(parts[i][0])].words.append(word)
+                    self.groups[knownColours.index(parts[i][0])].words.append(word)
 
-    def wordColor(self, word):
+    def wordColour(self, word):
         for i in range(len(self.groups)):
             if self.groups[i].words.count(word) > 0:
-                return self.groups[i].color
+                return self.groups[i].colour
         return -1
 
 class syntaxDatabase:
@@ -205,40 +217,80 @@ class fontDatabase:
     def __init__(self, path, fontSize):
         self.path = path
         self.fontSize = fontSize
-        self.fonts = []
-        self.loadFonts()
-        self.active = 0
-        self.selected = self.fonts[self.active]
-        self.height = self.selected.get_linesize()
-        
-    def loadFonts(self):
-        global fontSize
+        self.guiSize = 18
         try:
-            fList = os.listdir(self.path)
+            self.fonts = os.listdir(self.path)
         except:
             warn("Acess Denied to " + self.path)
             return
-        for i in range(len(fList)):
-            self.fonts.append(pygame.font.Font(self.path + "/" + fList[i], self.fontSize))
+        
+        self.active = 2
+        self.guiFont = self.loadFont(self.fonts[0], self.guiSize)
+        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
+        self.height = self.selected.size("I")[1]
+        self.guiHeight = self.guiFont.size("I")[1]
 
+    def loadFont(self, font, size):
+        return pygame.font.Font(self.path + "/" + font, size)
+
+    def setActiveByName(self, name):
+        self.active = self.fonts.index(name)
+        self.adjustScale(0)
+        
     def adjustScale(self, size):
         global bottom, scale
-        del self.fonts[:]
-        self.fonts = []
         self.fontSize += size
-        self.loadFonts()
-        self.selected = self.fonts[self.active]
-        self.height = self.selected.get_linesize()
+        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
+        self.height = self.selected.size("I")[1]
         bottom = len(files[openFile].lines) * self.height
-        scale = self.height * 5
+        scale = self.height * 3
         
     def updateFont(self):
         self.selected = self.fonts[self.active]
 
-class textCursor:
-    def __init__(self, pos):
-        self.pos = pos
+class themeDatabase:
+    def __init__(self, paths, name = "default"):
+        self.themeNames = []
+        for path in paths:
+            self.themeNames.append([path] + os.listdir(path))
+        self.active = [0, 1]
+        self.setActiveByName(name)
+    
+    def setActiveByName(self, name):
+        for i in range(len(self.themeNames)):
+            if self.themeNames[i].count(name + ".tme") > 0:
+                self.active[0] = i
+                self.active[1] = self.themeNames[i].index(name + ".tme")
+                self.colours = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
 
+    def loadTheme(self, path):
+        themeFile = open(path)
+        line = themeFile.readline().rstrip('\n')
+        colours = {}
+        while line:
+            split = line.split('|')
+            if line=="GROUPCOLOURS":
+                line = themeFile.readline().rstrip('\n').lstrip('\t')
+                while line!="/GROUPCOLOURS":
+                    split = line.split('|')
+                    colours[split[0]] = map(int,split[1].split(','))
+                    line = themeFile.readline().rstrip('\n').lstrip('\t')
+            elif split[0]=="LINENUMBERS":
+                drawLineN=bool(int(split[1]))
+            if split[0]=="BODYFONT":
+                fontDtb.setActiveByName(split[1])
+            line = themeFile.readline().rstrip('\n')
+        themeFile.close()
+        return colours
+                
+class textCursor:
+    def __init__(self, pos, index = -1):
+        self.pos = pos
+        if index == -1:
+            self.index = len(textCursors)
+        else:
+            self.index = index
+            
     def update(self):
         if keyboard.keys[K_RIGHT]:
             if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
@@ -256,113 +308,49 @@ class textCursor:
             
         elif keyboard.keys[K_DOWN]:
             if self.pos[1] < len(files[openFile].lines):
-                self.pos[1] += 1
-                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
-                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                if self.pos[1] < len(files[openFile].lines) - 1:
+                    self.pos[1] += 1
+                    if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
+                        self.pos[0] = len(files[openFile].lines[self.pos[1]])
                     
-        for i in range(ord("a"), ord("z") + 1):
-            if keyboard.keys[i]:
-                if keyboard.modifiers[1]:
-                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i - 32) +\
-                                                       files[openFile].lines[self.pos[1]][self.pos[0]:]
-                else:
-                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-                self.pos[0] += 1
-                files[openFile].updateLine(self.pos[1])
-
-        for i in range(32, 65):
-            if keyboard.keys[i]:
-                files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + chr(i) +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-                self.pos[0] += 1
-                files[openFile].updateLine(self.pos[1])
-
+        if keyboard.string != "":
+            
+            files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
+            self.pos[0] += 1
+            files[openFile].updateLine(self.pos[1])
+            
         if keyboard.keys[K_TAB]:
-             files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0]] + " " * tabWidth +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-             self.pos[0] += tabWidth
-             files[openFile].updateLine(self.pos[1])
+            files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
+            self.pos[0] += tabWidth
+            
+            files[openFile].updateLine(self.pos[1])
              
-        if keyboard.keys[K_RETURN]:
+        elif keyboard.keys[K_RETURN]:
             cut = files[openFile].lines[self.pos[1]][self.pos[0]:]
             files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]]
-            
             files[openFile].lines.insert(self.pos[1] + 1, cut)
             files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
             files[openFile].updateLine(self.pos[1])
-            self.pos[0] = 0
+
             self.pos[1] += 1
+            self.pos[0] = 0
             
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
+                
                 files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
                                                        files[openFile].lines[self.pos[1]][self.pos[0]:]
-                self.pos[0] -= 1
+               
                 files[openFile].updateLine(self.pos[1])
+                self.pos[0] -= 1
                 
             elif self.pos[1] > 0:
                 
                 self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
                 files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
+                files[openFile].updateLine(self.pos[1])
                 self.pos[1] -= 1
-                
-class Mouse:
-    def __init__(self):
-        self.clickPos = (0, 0)
-        self.clicked = False
-        self.pos = (0, 0)
-        self.clickRelease = False
-        self.lastState = False
-        self.buttons = [False] * 6
-        self.lastClick = -1
-        self.doubleClick = False
-    def update(self):
-        global clock
-        
-        self.pos = pygame.mouse.get_pos()
-        self.clicked = self.buttons[1]
 
-        self.clickRelease = False
-        self.doubleClick = False
-        
-        if not self.clicked and self.lastState:
-            self.clickRelease = True
-            self.lastState = False
-            
-        if self.clickRelease:
-            if self.lastClick != -1:
-                if (pygame.time.get_ticks() / 1000.) - self.lastClick <= 0.25:
-                    self.doubleClick = True
-                self.lastClick = -1
-            else:
-                self.lastClick = pygame.time.get_ticks() / 1000.0
-        else:
-            if self.lastClick != -1:
-                if (pygame.time.get_ticks() / 1000.0) - self.lastClick > 0.25:
-                    self.lastClick = -1
-                
-        if not self.lastState and self.clicked:
-            self.clickPos = pygame.mouse.get_pos()
-            
-    def difPos(self):
-        if self.pos[0] != self.clickPos[0] and self.pos[1] != self.clickPos[1]:
-            return True
-        return False
-
-class Keyboard:
-    def __init__(self):
-        self.keys = [False] * 320
-        self.last = [False] * 320
-        self.modifiersK = [K_LCTRL, K_LSHIFT]
-        self.modifiers = [False] * 2
-        
-    def pressRelease(self, key):
-        return self.last[key] and not self.keys[key]
-
-    def newPress(self, key):
-        return not self.last[key] and self.keys[key]  
-            
 def warn(string):
     print "warn -", string
 
@@ -382,6 +370,22 @@ def findAll(string, text):
                 matches.append(match.span()[0])
 
     return matches
+
+def loadImages(path):
+    extWhitelist = ["jpg", "png"]
+    images = {}
+    try:
+        imgList = os.listdir(path)
+    except:
+        warn("Access Denied to " + path)
+
+    for i in range(len(imgList)):
+        name = imgList[i].split(".")[0]
+        ext = imgList[i].split(".")[-1]
+        if name not in images and ext in extWhitelist:
+            images[name] = img(pygame.image.load(path + "/" + imgList[i]).convert_alpha())
+
+    return images
 
 def isAlpha(char):
     return ord(char) in range(ord("a"), ord("z") + 1) or\
@@ -405,34 +409,53 @@ def inString(text, span):
 
     return right and left
 
+def strInsert(part, string, index):
+    return string[:index] + part + string[index:]
 
-global colors, syntaxDtb, fontDtb, screen, cursor, bottom, top, openFile, scale, tabWidth
+
+global colours, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
+       bottom, top, openFile, scale, tabWidth, textCursors, openFile, dtb
+
 pygame.init()
 windw, windh = 1900, 980
+
+#Top and bottom boundaries, top variable
+top, bottom = 30, 0
+
+#Draw line numbers bool
+drawLineN = True
+
 screen = pygame.display.set_mode([windw, windh])
-colors = {}
-colors["blue"] = [0, 0, 255]
-colors["red"] = [255, 0, 0]
-colors["orange"] = [255, 165, 0]
-colors["purple"] = [147, 112, 219]
-colors["def"] = [0, 0, 0]
-syntaxDtb = syntaxDatabase("manifest.txt")
-fontDtb = fontDatabase("assets/fonts", 18)
 
-files = [File("files/textEdit.py"), File("files/test.py"),
-         File("files/highlightTest.py"), File("files/SquaresInSpace.py")]
-
+#open file index
 openFile = 0
+
+syntaxDtb = syntaxDatabase("manifest.txt")
+
+files = [File("files/textEdit.py"), File("files/highlightTest.py"), File("files/test.py")]
+
+fontDtb = fontDatabase("assets/fonts", 18)
+#imgDtb = imageDatabase(["assets/images/GUI"])
+themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"])
+
+#vertical scroll pos
 cursor = 0
-mse = Mouse()
+
+mouse = Mouse()
 keyboard = Keyboard()
-textCursors = [textCursor([0, 0])]
+textCursors = []
+textCursors.append(textCursor([0, 0]))
 run = True
-top = 0
+
 fontDtb.adjustScale(0)
 scale = 100
 pygame.key.set_repeat(250, 30)
 clock = pygame.time.Clock()
+
+guiComponents = guiManager(loadImages("assets/images/GUI"))
+guiComponents.setFont(fontDtb.guiFont)
+guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active), "fontSelector")
+guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 #spaces in a tab
 tabWidth = 4
@@ -445,7 +468,7 @@ time = 0
 on = True
 while run:
     time += clock.get_time()
-    mse.lastState = mse.clicked
+    mouse.lastState = mouse.clicked
     for i in range(len(keyboard.keys)):
         keyboard.last[i] = keyboard.keys[i]
         keyboard.keys[i] = False
@@ -454,47 +477,54 @@ while run:
         if event.type == QUIT:
             run = False
 
-        if event.type == KEYDOWN:
-            if event.key in range(len(keyboard.keys)):
-                keyboard.keys[event.key] = True
-                
-            for i in range(len(keyboard.modifiersK)):
-                if event.key == keyboard.modifiersK[i]:
-                    keyboard.modifiers[i] = True
+        if event.type == MOUSEBUTTONUP:
+            mouse.eventUpdate(event)
             
-        if event.type == KEYUP:
-            if event.key in range(len(keyboard.keys)):
-                keyboard.keys[event.key] = False
-                
-            for i in range(len(keyboard.modifiersK)):
-                if event.key == keyboard.modifiersK[i]:
-                    keyboard.modifiers[i] = False
-                
         if event.type == MOUSEBUTTONDOWN:
-            if event.button in range(len(mse.buttons)):
-                mse.buttons[event.button] = True
+            mouse.eventUpdate(event)
+            
+        if event.type == KEYDOWN:
+            if event.key not in keyboard.blackList and len(event.unicode) > 0:
+                if ord(event.unicode) in range(32, 127):
+                    keyboard.keys[ord(event.unicode)] = True
+                
+            else:
+                keyboard.keys[event.key] = True
 
-        elif event.type == MOUSEBUTTONUP:
-            if event.button in range(len(mse.buttons)):
-                mse.buttons[event.button] = False
-                    
-        if mse.buttons[4]:
+            if event.key in keyboard.modifiersK:
+                keyboard.modifiers[keyboard.modifiersK.index(event.key)] = True
+                
+        if event.type == KEYUP:
+            if event.key in keyboard.modifiersK:
+                keyboard.modifiers[keyboard.modifiersK.index(event.key)] = False
+    
+        if mouse.buttons[4]:
             if keyboard.modifiers[0]:
                 fontDtb.adjustScale(2)
                 
             elif  cursor > 0:
                 cursor -= scale
                 
-        elif mse.buttons[5]:
+        elif mouse.buttons[5]:
             if keyboard.modifiers[0]:
-                if fontDtb.fontSize - 2  > 0:
+                if fontDtb.fontSize - 2  > 2:
                     fontDtb.adjustScale(-2)
                 
             elif cursor + windh < bottom + top:
                 cursor += scale
+
+    if mouse.buttons[2]:
+        if cursor >= 0 and cursor + windh <= bottom + top:
+            cursor += (mouse.lastpos[1][1] - mouse.lastpos[0][1]) * 4
+
     if cursor < 0:
         cursor = 0
-    mse.update()
+    elif cursor + windh > bottom + top and bottom - windh >= 0:
+        cursor = bottom - windh + top
+        
+    
+    mouse.update()
+    keyboard.buildString()
     if on:
         if time >= onInterval:
             on = not on
@@ -504,20 +534,24 @@ while run:
             on = not on
             time = 0
             
-    if mse.clicked:
+    if  mouse.clicked and not mouse.lastState and mouse.pos[1] > top:
         xPos = 0
-        yPos = (mse.pos[1] + cursor) / fontDtb.height
+        yPos = (mouse.pos[1] + cursor - top) / fontDtb.height
         nLines = len(files[openFile].lines)
         if yPos > nLines - 1:
             yPos = nLines - 1
             
         nChars = len(files[openFile].lines[yPos])
-        charX = fontDtb.selected.size(str(nLines))[0]
+        #-4 hard coded value to align cursor better
+        charX = -4
+        
+        if drawLineN:
+            charX = fontDtb.selected.size(str(nLines))[0]
+            
         sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
         picked = False
         for i in range(nChars):
-            
-            if pygame.Rect(mse.pos[0], mse.pos[1] + cursor, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
+            if pygame.Rect(mouse.pos[0], mouse.pos[1] + cursor - top, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
                 xPos = i
                 picked = True
                 break
@@ -531,22 +565,23 @@ while run:
     
     for i in range(len(textCursors)):
         textCursors[i].update()
+
+    guiComponents.update(mouse)
         
-##    if keyboard.pressRelease(K_LEFT):
-##        if openFile > 0:
-##            openFile -= 1
-##        else:
-##            openFile = len(files) - 1
-##        bottom = len(files[openFile].parsed) * fontDtb.height
-##
-##    if keyboard.pressRelease(K_RIGHT):
-##        if openFile < len(files) - 1:
-##            openFile += 1
-##        else:
-##            openFile = 0
-##        bottom = len(files[openFile].parsed) * fontDtb.height
+    drawLineN = guiComponents.items["lnToggle"].state
+    if guiComponents.items["fontSelector"].newSelection() and guiComponents.items["fontSelector"].selected != -1:
+        fontDtb.active = guiComponents.items["fontSelector"].selected
+        fontDtb.adjustScale(0)
+
     screen.fill([255, 255, 255])
     files[openFile].drawFile()
+
+    #Draw top bar
+    pygame.draw.rect(screen, [255, 255, 255], [0, 0, windw, top], 0)
+    
+    #Draw all gui items
+    guiComponents.draw(screen)
+        
     pygame.display.update()
     clock.tick()
 pygame.quit()

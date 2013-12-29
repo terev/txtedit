@@ -1,9 +1,9 @@
-import pygame, re, os, mouseHandler, keyboardHandler, Image, guiHandler
+import pygame, re, os
 from pygame.locals import *
 from mouseHandler import *
 from keyboardHandler import *
 from guiHandler import *
-from Image import *
+from imageStruct import *
 
 class File:
     def __init__(self, path):
@@ -35,48 +35,65 @@ class File:
             
     def parseLine(self, line):
         global syntaxDtb
-        found = re.findall(r"\b(\w+\b)", line)
-        if len(found) > 0:
-            keysIn = []
-            indeces = []
-            final = []
+        indeces = []
+        keysIn = []
+        
+        
+        exprC = ["",""]
+        exprC[0] = "".join(["\\"+x for x in syntaxDtb.active.comt[0]])
+        exprC[1] = "".join(["\\"+x for x in syntaxDtb.active.comt[1]])
+        
+        commentExpr = exprC[0] + "+.*"
 
-            for l in range(len(found)):
+        for match in re.finditer(commentExpr, line):
 
-                    if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
-                        keysIn.append(found[l])
-                        indeces.append(findAll(found[l], line))
+            if match.span()[0] == 0 or (line[match.span()[0] - 1] != "'" and line[match.span()[0] - 1] != '"'):
+                indeces.append([match.span()[0]])
+                keysIn.append(match.group())
 
-            if len(indeces) == 0:
-                return [[False, line]]
-            
-            else:
-                fixed = line
-                for l in range(len(keysIn)):
-                    fixed = "".join(fixed.split(keysIn[l]))
-                final = []
-                string = ""
-                k = 0
-                while k < len(line):
-                    for j in range(len(indeces)):
-                        if k in indeces[j]:
-                            if string != "":
-                                final.append([False, string])
-                            final.append([True, keysIn[j], syntaxDtb.active.wordColour(keysIn[j])])
-                            string = ""
-                            k += len(keysIn[j])
-                            break
-                        
-                    if k < len(line):
-                        string += line[k]
-                    k += 1
+        special = re.findall(r"[\'|\"]+.*?[\'|\"]", line) + re.findall(r"\-?[0-9]+\.?[0-9]*", line)
+        for i in range(len(special)):
+            cur = []
+            for match in re.finditer(special[i], line):
+                cur.append(match.span()[0])
+            indeces.append(cur)
+            keysIn.append(special[i])
                 
-                if string != "":
-                     final.append([False, string])
-            return final
-            
-        else:
+        found = re.findall(r"\b\w+\b", line)
+        final = []
+        if len(found) > 0:
+            for l in range(len(found)):
+                if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
+                    keysIn.append(found[l])
+                    indeces.append(findAll(found[l], line))
+
+        if len(indeces) == 0:
             return [[False, line]]
+        
+        else:
+            final = []
+            string = ""
+            k = 0
+            while k < len(line):
+                for j in range(len(indeces)):
+                    if k in indeces[j]:
+                        if string != "":
+
+                            final.append([False, string])
+                        final.append([True, keysIn[j] , syntaxDtb.active.wordColour(keysIn[j])])
+                        string = ""
+                        k += len(keysIn[j])
+                        break
+                    
+                if k < len(line):
+                    string += line[k]
+                k += 1
+            
+            if string != "":
+                 final.append([False, string])
+        return final
+        
+    
 
     def updateLine(self, lineNum):
         parsed = self.parseLine(self.lines[lineNum])
@@ -145,6 +162,7 @@ class highlight:
         self.name = name
         self.path = path
         self.groups = []
+        self.comt = ["", ""]
         self.autoExt = extenstions
         self.getData()
         
@@ -154,12 +172,19 @@ class highlight:
         except:
             warn("Cannot open " + self.path)
             return
-        
-        contents = config.read()
+        contents = []
+        line = config.readline().rstrip("\n")
+        comments = line
+        while line:
+            line = config.readline().rstrip("\n")
+            contents.append(line)
         config.close()
-        contents = " ".join(contents.split("\n"))
+        cmntSplit = comments.split("|")[-1].split(",")
+        self.comt[0] = cmntSplit[0]
+        self.comt[1] = cmntSplit[1]
         knownColours = []
         cur = 0
+        contents = "".join(contents)
         parsed = re.findall(r'([A-Za-z][^{}]*)', contents)
         parts = []
         curpart = []
@@ -175,6 +200,15 @@ class highlight:
                     self.groups[knownColours.index(parts[i][0])].words.append(word)
 
     def wordColour(self, word):
+        if isNum(word):
+            return "num"
+        
+        if (word[0] == "'" or word[0] == '"') and\
+           (word[-1] == "'" or word[-1] == '"'):
+            return "str"
+        if word.find(self.comt[0]) == 0:
+            return "cmt"
+        
         for i in range(len(self.groups)):
             if self.groups[i].words.count(word) > 0:
                 return self.groups[i].colour
@@ -283,16 +317,6 @@ class themeDatabase:
             line = themeFile.readline().rstrip('\n')
         themeFile.close()
         return colours
-##        
-##class imageDatabase:
-##
-##    def __init__(self, paths):
-##        self.paths = paths
-##        self.imgGroups = {}
-##        for i in range(len(self.paths)):
-##            groupName = self.paths[i].split("/")[-1]
-##            if groupName not in self.imgGroups:
-##                self.imgGroups[groupName] = self.loadImages(self.paths[i])
                 
 class textCursor:
     def __init__(self, pos, index = -1):
@@ -306,10 +330,16 @@ class textCursor:
         if keyboard.keys[K_RIGHT]:
             if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
                 self.pos[0] += 1
+            elif self.pos[1] < len(files[openFile].lines) - 1:
+                self.pos[1] += 1
+                self.pos[0] = 0
                 
         elif keyboard.keys[K_LEFT]:
             if self.pos[0] > 0:
                 self.pos[0] -= 1
+            elif self.pos[1] > 0:
+                self.pos[1] -= 1
+                self.pos[0] = len(files[openFile].lines[self.pos[1]])
                 
         if keyboard.keys[K_UP]:
             if self.pos[1] > 0:
@@ -327,7 +357,7 @@ class textCursor:
         if keyboard.string != "":
             
             files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
-            self.pos[0] += 1
+            self.pos[0] += len(keyboard.string)
             files[openFile].updateLine(self.pos[1])
             
         if keyboard.keys[K_TAB]:
@@ -345,7 +375,17 @@ class textCursor:
 
             self.pos[1] += 1
             self.pos[0] = 0
-            
+
+        elif keyboard.keys[K_DELETE]:
+            if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
+                files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]] +\
+                                                     files[openFile].lines[self.pos[1]][self.pos[0] + 1:]
+                files[openFile].updateLine(self.pos[1])
+                
+            elif self.pos[1] < len(files[openFile].lines):
+                files[openFile].mergeLines(self.pos[1], self.pos[1] + 1)
+                files[openFile].updateLine(self.pos[1])
+                
         elif keyboard.keys[K_BACKSPACE]:
             if self.pos[0] > 0:
                 
@@ -367,7 +407,7 @@ def warn(string):
 
 def findAll(string, text):
     matches = []
-    for match in re.finditer(r"\b" + string + "" , text):
+    for match in re.finditer(string , text):
         if not inString(text, match.span()):
             if match.span()[1] < len(text):
                 if match.span()[0] == 0 and not isAlpha(text[match.span()[1]]):
@@ -399,8 +439,15 @@ def loadImages(path):
     return images
 
 def isAlpha(char):
-    return ord(char) in range(ord("a"), ord("z") + 1) or\
-           ord(char) in range(ord("A"), ord("Z") + 1)
+    return ord(char) in range(97, 123) or\
+           ord(char) in range(65, 91)
+
+def isNum(string):
+    if string.count("-") > 1:
+        return False
+    if string.count(".") > 1:
+        return False
+    return not False in [True if ord(x) in range(48, 58) or x in ('-', '.') else False for x in string]
 
 def inString(text, span):
     left = False
@@ -430,6 +477,7 @@ global colours, syntaxDtb, fontDtb, screen, cursor, drawLineN,\
 pygame.init()
 windw, windh = 1900, 980
 
+
 #Top and bottom boundaries, top variable
 top, bottom = 30, 0
 
@@ -443,8 +491,8 @@ openFile = 0
 
 syntaxDtb = syntaxDatabase("manifest.txt")
 
-files = [File("files/highlightTest.py"),File("files/textEdit.py"),
-         File("files/test.py"),File("files/SquaresInSpace.py")]
+
+files = [File("files/textEdit.py"), File("files/highlightTest.py"), File("files/test.py")]
 
 fontDtb = fontDatabase("assets/fonts", 18)
 #imgDtb = imageDatabase(["assets/images/GUI"])
@@ -475,43 +523,6 @@ tabWidth = 4
 #Cursor blink on and off intervals
 onInterval = 500
 offInterval = 400
-
-#LOAD DEFAULTS
-##themeFile = open("user/themes/prop/default.tme")
-##line = themeFile.readline().rstrip('\n')
-##while line:
-##    split = line.split('|')
-##    if line=="GROUPCOLOURS":
-##        colours = {}
-##        line = themeFile.readline().rstrip('\n').lstrip('\t')
-##        while line!="/GROUPCOLOURS":
-##            split = line.split('|')
-##            colours[split[0]] = map(int,split[1].split(','))
-##            line = themeFile.readline().rstrip('\n').lstrip('\t')
-##    elif split[0]=="LINENUMBERS":
-##        drawLineN=bool(int(split[1]))
-##    if split[0]=="BODYFONT":
-##        fontDtb.setActiveByName(split[1])
-##    line = themeFile.readline().rstrip('\n')
-##themeFile.close()
-##
-###LOAD CUSTOM PARTIAL FILE
-##themeFile = open("user/themes/custom/test.tme")
-##line = themeFile.readline().rstrip('\n')
-##while line:
-##    split = line.split('|')
-##    if line=="GROUPCOLOURS":
-##        line = themeFile.readline().rstrip('\n').lstrip('\t')
-##        while line!="/GROUPCOLOURS":
-##            split = line.split('|')
-##            colours[split[0]] = map(int,split[1].split(','))
-##            line = themeFile.readline().rstrip('\n').lstrip('\t')
-##    elif split[0]=="LINENUMBERS":
-##        drawLineN=bool(int(split[1]))
-##    if split[0]=="BODYFONT":
-##        fontDtb.setActiveByName(split[1])
-##    line = themeFile.readline().rstrip('\n')
-##themeFile.close()
 
 time = 0
 on = True

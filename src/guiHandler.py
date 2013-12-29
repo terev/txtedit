@@ -1,6 +1,6 @@
-import pygame, Image
+import pygame
 from pygame.locals import *
-from Image import image
+from imageStruct import image
 
 global font, fontHeight, imageList
 imageList = {}
