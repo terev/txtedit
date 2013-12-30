@@ -7,7 +7,7 @@ class Keyboard:
         self.modifiersK = [K_LCTRL, K_LSHIFT]
         self.modifiers = [False] * 2
         self.whiteList = [x for x in range(32, 127)]
-        self.blackList = [K_RETURN, K_BACKSPACE]
+        self.blackList = [K_RETURN, K_BACKSPACE, K_TAB]
         self.string = ""
 
     def buildString(self):
