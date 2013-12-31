@@ -452,16 +452,55 @@ class textCursor:
 
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
-            #delete chars on same line
-            if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
-                files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]] +\
-                                                     files[openFile].lines[self.pos[1]][self.pos[0] + 1:]
-                files[openFile].updateLine(self.pos[1])
+            if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
+                endY = max(textCursors[0].pos[1], initialClick[1])
+                startY = min(textCursors[0].pos[1], initialClick[1])
 
-            #merge line below onto current line
-            elif self.pos[1] < len(files[openFile].lines) - 1:
-                files[openFile].mergeLines(self.pos[1], self.pos[1] + 1)
-                files[openFile].updateLine(self.pos[1])
+                
+                if startY == endY:
+                    startX = min(textCursors[0].pos[0], initialClick[0])
+                    endX = max(textCursors[0].pos[0], initialClick[0])
+                else:
+                    if startY == textCursors[0].pos[1]:
+                        startX = textCursors[0].pos[0]
+                        endX = initialClick[0]
+                    else:
+                        startX = initialClick[0]
+                        endX = textCursors[0].pos[0]
+                        
+                if startY == endY:
+                    files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
+                    files[openFile].updateLine(startY)
+                    self.pos[0] = startX
+                else:
+                    files[openFile].lines = files[openFile].lines[:startY] + [files[openFile].lines[startY][:startX]] + \
+                                             ([files[openFile].lines[endY][endX:]] + files[openFile].lines[endY + 1:])
+                    
+                    for i in range(startY + 1, endY):
+                        files[openFile].parsed.pop(startY + 1)
+                        
+                    files[openFile].mergeLines(startY, startY + 1)
+                        
+                    files[openFile].updateLine(startY)
+                    if startY < len(files[openFile].lines) - 1:
+                        files[openFile].updateLine(startY + 1)
+
+                    self.pos[0] = startX
+                    self.pos[1] = startY
+
+                initialClick[0] = -1
+                initialClick[1] = -1
+            else:
+                #delete chars on same line
+                if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
+                    files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]] +\
+                                                         files[openFile].lines[self.pos[1]][self.pos[0] + 1:]
+                    files[openFile].updateLine(self.pos[1])
+
+                #merge line below onto current line
+                elif self.pos[1] < len(files[openFile].lines) - 1:
+                    files[openFile].mergeLines(self.pos[1], self.pos[1] + 1)
+                    files[openFile].updateLine(self.pos[1])
 
         #delete chars before cursor
         elif keyboard.keys[K_BACKSPACE]:
