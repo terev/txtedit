@@ -50,31 +50,23 @@ class File:
                 indeces.append([match.span()[0]])
                 keysIn.append(match.group())
 
-        special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"\-?[0-9]+\.?[0-9]*", line)
+        special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"[0-9]+\.?[0-9]*", line)
         for i in range(len(special)):
             cur = []
-            padded = ""
-            spans = []
-            for match in re.finditer("\W", special[i]):
-                spans.append(match.span()[0])
-            for j in range(len(special[i])):
-                if j in spans:
-                    padded += "\\" + special[i][j]
-                else:
-                    padded += special[i][j]
-
+            padded = padWord(special[i])
             for match in re.finditer(padded, line):
                 cur.append(match.span()[0])
             indeces.append(cur)
             keysIn.append(special[i])
-                
-        found = re.findall(r"\b\w+\b", line)
+
+        found = re.findall(r"[a-zA-Z_]+", line) + re.findall(r"[=!+/*-]+", line)
+
         final = []
         if len(found) > 0:
             for l in range(len(found)):
-                if syntaxDtb.isKeyword(found[l])and found[l] not in keysIn:
+                if syntaxDtb.isKeyword(found[l]) and found[l] not in keysIn:
                     keysIn.append(found[l])
-                    indeces.append(findAllKeys(found[l], line))
+                    indeces.append(findAllKeys(found[l], line, padWord(found[l])))
 
         if len(indeces) == 0:
             return [[False, line]]
@@ -84,19 +76,20 @@ class File:
             string = ""
             k = 0
             while k < len(line):
+                added = False
                 for j in range(len(indeces)):
                     if k in indeces[j]:
+                        added = True
                         if string != "":
-
                             final.append([False, string])
                         final.append([True, keysIn[j] , syntaxDtb.active.wordColour(keysIn[j])])
                         string = ""
                         k += len(keysIn[j])
                         break
                     
-                if k < len(line):
+                if not added and k < len(line):
                     string += line[k]
-                k += 1
+                    k += 1
             
             if string != "":
                  final.append([False, string])
@@ -127,20 +120,19 @@ class File:
         if drawLineN:
             buff = 5
             sideBuff = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
-            pygame.draw.rect(screen, [200, 200, 200], [0, top, sideBuff, windh], 0)
+            pygame.draw.line(screen, themeDtb.colours["def"], [sideBuff, 0], [sideBuff, windh], 1)
+            #pygame.draw.rect(screen, themeDtb.colours["def"], [0, top, sideBuff, windh], 1)
 
         #Screen scope range
         scope = range(vCursor / fontDtb.height, ((vCursor + windh) / fontDtb.height) \
                       if ((vCursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
-        
         for i in scope:
             x = 0
+            charX = 0
             if drawLineN:
-                lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, [0, 0, 0])
+                lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.colours["def"])
                 screen.blit(lineN, [x + 2, i * fontDtb.height - vCursor + top])
                 x += sideBuff + buff
-            
-            
 
             for w in range(len(self.parsed[i])):
                 if self.parsed[i][w][0]:
@@ -149,6 +141,7 @@ class File:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours["def"])
                 screen.blit(surface, [x, i * fontDtb.height - vCursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
+                charX += len(self.parsed[i][w][1])
                 
         if on:
             temp = 0
@@ -157,7 +150,7 @@ class File:
             for i in range(len(textCursors)):
                 if textCursors[i].pos[1] in scope:
                     cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
-                    pygame.draw.rect(screen, [0, 0, 0], [fontDtb.selected.size(cursSlice)[0] + sideBuff + temp, \
+                    pygame.draw.rect(screen, cursorColour, [fontDtb.selected.size(cursSlice)[0] + sideBuff + temp, \
                                                          textCursors[i].pos[1] * fontDtb.height + 2 + top - vCursor, 2, fontDtb.height - 4], 0)
         
 class keyGroup:
@@ -197,7 +190,7 @@ class highlight:
         parts = []
         curpart = []
         for i in range(0, len(parsed), 2):
-            parts.append([re.findall(r"\w+", parsed[i])[0], re.findall(r"\w+", parsed[i + 1])])
+            parts.append([re.findall(r"\w+", parsed[i])[0], re.findall(r"[a-zA-Z0-9_=!+/*-]+", parsed[i + 1])])
             
         for i in range(len(parts)):
             if parts[i][0] not in knownColours:
@@ -303,9 +296,14 @@ class fontDatabase:
 class themeDatabase:
     def __init__(self, paths, name = "default"):
         self.themeNames = []
+        self.nameList = []
         for path in paths:
             self.themeNames.append([path] + os.listdir(path))
+            names = os.listdir(path)
+            for i in range(len(names)):
+                self.nameList += [names[i].split(".")[0]]
         self.active = [0, 1]
+        self.colours = {}
         self.setActiveByName(name)
     
     def setActiveByName(self, name):
@@ -313,23 +311,43 @@ class themeDatabase:
             if self.themeNames[i].count(name + ".tme") > 0:
                 self.active[0] = i
                 self.active[1] = self.themeNames[i].index(name + ".tme")
-                self.colours = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
+                newColours = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
+                for key in newColours:
+                    self.colours[key] = newColours[key]
+
+    def indexOfName(self, name):
+        count = 0
+        for i in range(len(self.themeNames)):
+            if self.themeNames[i].count(name + ".tme") > 0:
+                return count + self.themeNames[i].index(name + ".tme") - 1
+            count += len(self.themeNames[i]) - 1
 
     def loadTheme(self, path):
+        global bgColour, lineColour, cursorColour,\
+               selectionColour
+        
         themeFile = open(path)
         line = themeFile.readline().rstrip('\n')
         colours = {}
         while line:
             split = line.split('|')
-            if line=="GROUPCOLOURS":
+            if line == "GROUPCOLOURS":
                 line = themeFile.readline().rstrip('\n').lstrip('\t')
                 while line!="/GROUPCOLOURS":
                     split = line.split('|')
                     colours[split[0]] = map(int,split[1].split(','))
                     line = themeFile.readline().rstrip('\n').lstrip('\t')
-            elif split[0]=="LINENUMBERS":
+            elif split[0] == "BGCOLOUR":
+                bgColour = map(int, split[1].split(","))
+            elif split[0] == "LINECOLOUR":
+                lineColour = map(int, split[1].split(","))
+            elif split[0] == "CURSORCOLOUR":
+                cursorColour = map(int, split[1].split(","))
+            elif split[0] == "SELECTION":
+                selectionColour = map(int, split[1].split(","))
+            elif split[0] == "LINENUMBERS":
                 drawLineN=bool(int(split[1]))
-            if split[0]=="BODYFONT":
+            elif split[0] == "BODYFONT":
                 fontDtb.setActiveByName(split[1])
             line = themeFile.readline().rstrip('\n')
         themeFile.close()
@@ -452,22 +470,8 @@ class textCursor:
 
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
-            if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
-                endY = max(textCursors[0].pos[1], initialClick[1])
-                startY = min(textCursors[0].pos[1], initialClick[1])
-
+            if isSelection:
                 
-                if startY == endY:
-                    startX = min(textCursors[0].pos[0], initialClick[0])
-                    endX = max(textCursors[0].pos[0], initialClick[0])
-                else:
-                    if startY == textCursors[0].pos[1]:
-                        startX = textCursors[0].pos[0]
-                        endX = initialClick[0]
-                    else:
-                        startX = initialClick[0]
-                        endX = textCursors[0].pos[0]
-                        
                 if startY == endY:
                     files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
                     files[openFile].updateLine(startY)
@@ -504,21 +508,7 @@ class textCursor:
 
         #delete chars before cursor
         elif keyboard.keys[K_BACKSPACE]:
-            if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
-                endY = max(textCursors[0].pos[1], initialClick[1])
-                startY = min(textCursors[0].pos[1], initialClick[1])
-
-                if startY == endY:
-                    startX = min(textCursors[0].pos[0], initialClick[0])
-                    endX = max(textCursors[0].pos[0], initialClick[0])
-                else:
-                    if startY == textCursors[0].pos[1]:
-                        startX = textCursors[0].pos[0]
-                        endX = initialClick[0]
-                    else:
-                        startX = initialClick[0]
-                        endX = textCursors[0].pos[0]
-                        
+            if isSelection:      
                 if startY == endY:
                     files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
                     files[openFile].updateLine(startY)
@@ -565,16 +555,20 @@ class textCursor:
 def warn(string):
     print "warn -", string
 
-def findAllKeys(string, text):
+def findAllKeys(string, text, regex):
     matches = []
-    for match in re.finditer(string , text):
+    for match in re.finditer(regex , text):
         if not inString(text, match.span()):
-            if match.span()[1] < len(text):
+            if not strIsAlpha(string):
+                matches.append(match.span()[0])
+                
+            elif match.span()[1] < len(text):
                 if match.span()[0] == 0 and not isAlpha(text[match.span()[1]]):
                     matches.append(match.span()[0])
                 elif not isAlpha(text[match.span()[0] - 1]) and not isAlpha(text[match.span()[1]]):
                     matches.append(match.span()[0])
-            elif not isAlpha(text[match.span()[0] - 1]):
+                    
+            elif isAlpha(text[match.span()[0]]) and not isAlpha(text[match.span()[0] - 1]):
                 matches.append(match.span()[0])
 
             elif match.span()[0] == 0 and match.span()[1] == len(text):
@@ -602,11 +596,19 @@ def isAlpha(char):
     return ord(char) in range(97, 123) or\
            ord(char) in range(65, 91)
 
+def strIsAlpha(string):
+    for c in string:
+        if not isAlpha(c):
+            return False
+    return True
+
 def isNum(string):
-    if string.count("-") > 1:
+    if string[0] == "-" and len(string) == 1:
         return False
+    
     if string.count(".") > 1:
         return False
+
     return not False in [True if ord(x) in range(48, 58) or x in ('-', '.') else False for x in string]
 
 def inString(text, span):
@@ -630,53 +632,45 @@ def inString(text, span):
 def strInsert(part, string, index):
     return string[:index] + part + string[index:]
 
+def padWord(word):
+    spans = []
+    padded = ""
+    for match in re.finditer("\W", word):
+        spans.append(match.span()[0])
+    for j in range(len(word)):
+        if j in spans:
+            padded += "\\" + word[j]
+        else:
+            padded += word[j]
 
-global colours, syntaxDtb, fontDtb, screen, vCursor, drawLineN,\
-       bottom, top, openFile, scale, tabWidth, textCursors, openFile, dtb
+    
+    return padded
 
+
+global colours, syntaxDtb, fontDtb, screen, vCursor, drawLineN, bgColour, lineColour,\
+       cursorColour, selectionColour, bottom, top, openFile, scale, tabWidth, textCursors,\
+       openFile, dtb, startY, endY, startX, endX, isSelection
+
+#initialize pygame
 pygame.init()
+
+#window width and height
 windw, windh = 1900, 980
 
+#screen flush colour
+bgColour = [255, 255, 255]
+
+#line highlight colour
+lineColour = [240, 240, 240]
+
+#cursor colour
+cursorColour = [0, 0, 0]
+
+#selection foreground
+selectionColour = [180, 180, 180]
 
 #Top and bottom boundaries, top variable
 top, bottom = 30, 0
-
-#vertical scroll pos
-vCursor = 0
-
-#Draw line numbers bool
-drawLineN = True
-
-screen = pygame.display.set_mode([windw, windh])
-
-#open file index
-openFile = 0
-
-syntaxDtb = syntaxDatabase("manifest.txt")
-
-
-files = [File("files/highlightTest.py"), File("files/textEdit.py"),  File("files/test.py")]
-
-fontDtb = fontDatabase("assets/fonts", 18)
-fontDtb.setActiveByName("consola")
-themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"])
-
-mouse = Mouse()
-keyboard = Keyboard()
-textCursors = []
-textCursors.append(textCursor([0, 0]))
-initialClick = [-1, -1]
-run = True
-
-fontDtb.adjustScale(0)
-scale = 100
-pygame.key.set_repeat(250, 30)
-clock = pygame.time.Clock()
-
-guiComponents = guiManager(loadImages("assets/images/GUI"))
-guiComponents.setFont(fontDtb.guiFont)
-guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active), "fontSelector")
-guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 #spaces in a tab
 tabWidth = 4
@@ -685,8 +679,54 @@ tabWidth = 4
 onInterval = 500
 offInterval = 400
 
+#selection boundaries
+startY, endY, startX, endX = 0, 0, 0, 0
+
+#is there a selection bool
+isSelection = False
+
+#vertical scroll pos
+vCursor = 0
+
+#Draw line numbers bool
+drawLineN = True
+
+screen = pygame.display.set_mode([windw, windh], pygame.RESIZABLE)
+
+#open file index
+openFile = 0
+
+syntaxDtb = syntaxDatabase("manifest.txt")
+
+files = [File("files/textEdit.py")]
+
+fontDtb = fontDatabase("assets/fonts", 18)
+fontDtb.setActiveByName("consola")
+themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"], "dark")
+guiComponents = guiManager(loadImages("assets/images/GUI"))
+
+#initializing mouse and keyboard
+mouse = Mouse()
+keyboard = Keyboard()
+
+textCursors = []
+textCursors.append(textCursor([0, 0]))
+initialClick = [-1, -1]
+
+fontDtb.adjustScale(0)
+scale = 100
+pygame.key.set_repeat(250, 30)
+clock = pygame.time.Clock()
+
+guiComponents.setFont(fontDtb.guiFont)
+guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active), "fontSelector")
+guiComponents.addItem(DropDown([windw - 600, 0], [200, 26], themeDtb.nameList, themeDtb.indexOfName("dark")), "themeSelector")
+guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
+
 time = 0
 on = True
+
+run = True
 while run:
     time += clock.get_time()
     mouse.lastState = mouse.clicked
@@ -695,6 +735,12 @@ while run:
         keyboard.keys[i] = False
         
     for event in pygame.event.get():
+        if event.type == VIDEORESIZE:
+            windw, windh = event.size
+            
+            #you are actually supposed to do this
+            screen = pygame.display.set_mode([windw, windh], pygame.RESIZABLE)
+            
         if event.type == QUIT:
             run = False
 
@@ -708,7 +754,6 @@ while run:
             if event.key not in keyboard.blackList and len(event.unicode) > 0:
                 if ord(event.unicode) in range(32, 127):
                     keyboard.keys[ord(event.unicode)] = True
-                
             else:
                 keyboard.keys[event.key] = True
 
@@ -772,8 +817,8 @@ while run:
             
         sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
         mouseRect = pygame.Rect(mouse.pos[0], mouse.pos[1] + vCursor - top, 1, 1)
-        if drawLineN and mouseRect.x < fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 4 + 5:
-            mouseRect.x = fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 4 + 5
+        if drawLineN and mouseRect.x < fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9:
+            mouseRect.x = fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9
         picked = False
         for i in range(nChars):
             if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
@@ -791,6 +836,25 @@ while run:
             
         textCursors[0].pos[0] = xPos
         textCursors[0].pos[1] = yPos
+
+    #Get the selection boundaries - on calculated once now
+    if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and\
+                                   initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
+        isSelection = True
+        endY = max(textCursors[0].pos[1], initialClick[1])
+        startY = min(textCursors[0].pos[1], initialClick[1])
+        
+        if startY == endY:
+            startX = min(textCursors[0].pos[0], initialClick[0])
+            endX = max(textCursors[0].pos[0], initialClick[0])
+        elif startY == textCursors[0].pos[1]:
+            startX = textCursors[0].pos[0]
+            endX = initialClick[0]
+        else:
+            startX = initialClick[0]
+            endX = textCursors[0].pos[0]
+    else:
+        isSelection = False
     
     for i in range(len(textCursors)):
         textCursors[i].update()
@@ -802,28 +866,19 @@ while run:
         fontDtb.active = guiComponents.items["fontSelector"].selected
         fontDtb.adjustScale(0)
 
-    screen.fill([255, 255, 255])
-    for j in range(len(textCursors)):
-        pygame.draw.rect(screen, [240, 240, 240], [0, textCursors[j].pos[1] * fontDtb.height - vCursor + top, windw - 5, fontDtb.height], 0)
+    if guiComponents.items["themeSelector"].newSelection() and guiComponents.items["themeSelector"].selected != -1:
+        themeDtb.setActiveByName(guiComponents.items["themeSelector"].items[guiComponents.items["themeSelector"].selected])
 
-    if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
-        
-        endY = max(textCursors[0].pos[1], initialClick[1])
-        startY = min(textCursors[0].pos[1], initialClick[1])
-        
-        if startY == textCursors[0].pos[1]:
-            startX = textCursors[0].pos[0]
-            endX = initialClick[0]
-        else:
-            startX = initialClick[0]
-            endX = textCursors[0].pos[0]
+    screen.fill(bgColour)
+    
 
+    if isSelection:
         for i in range(startY, endY + 1):
             lineWidth = 0
             actualX = 0
             actualY = fontDtb.height * i + top - vCursor
             if drawLineN:
-                actualX += fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 4 + 5
+                actualX += fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9
                 
             if i == startY and i == endY:
                 tX = min(startX, endX)
@@ -839,17 +894,19 @@ while run:
             else:
                 lineWidth = windw
 
-            pygame.draw.rect(screen, (180, 180, 180), (actualX, fontDtb.height * i - vCursor + top, lineWidth, fontDtb.height), 0)   
-        #pygame.draw.rect(screen, (180, 180, 180), (actualX, actualY + top - vCursor, width, height), 0)
+            pygame.draw.rect(screen, selectionColour, (actualX, fontDtb.height * i - vCursor + top, lineWidth, fontDtb.height), 0)
+    else:
+        for j in range(len(textCursors)):
+            pygame.draw.rect(screen, lineColour, [0, textCursors[j].pos[1] * fontDtb.height - vCursor + top, windw - 5, fontDtb.height], 0)
 
     files[openFile].drawFile()
         
     #Draw top bar
-    pygame.draw.rect(screen, [255, 255, 255], [0, 0, windw, top], 0)
+    pygame.draw.rect(screen, bgColour, [0, 0, windw, top], 0)
     
     #Draw all gui items
     guiComponents.draw(screen)
         
-    pygame.display.update()
+    pygame.display.flip()
     clock.tick()
 pygame.quit()
