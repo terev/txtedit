@@ -756,7 +756,7 @@ while run:
             on = not on
             time = 0
             
-    if  mouse.clicked and mouse.pos[1] > top:
+    if mouse.clicked and mouse.pos[1] > top:
         xPos = 0
         yPos = (mouse.pos[1] + vCursor - top) / fontDtb.height
         nLines = len(files[openFile].lines)
@@ -771,9 +771,12 @@ while run:
             charX = fontDtb.selected.size(str(nLines))[0]
             
         sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
+        mouseRect = pygame.Rect(mouse.pos[0], mouse.pos[1] + vCursor - top, 1, 1)
+        if drawLineN and mouseRect.x < fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 4 + 5:
+            mouseRect.x = fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 4 + 5
         picked = False
         for i in range(nChars):
-            if pygame.Rect(mouse.pos[0], mouse.pos[1] + vCursor - top, 1, 1).colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
+            if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
                 xPos = i
                 picked = True
                 break
