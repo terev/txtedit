@@ -128,7 +128,6 @@ class File:
                       if ((vCursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
         for i in scope:
             x = 0
-            charX = 0
             if drawLineN:
                 lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.colours["def"])
                 screen.blit(lineN, [x + 2, i * fontDtb.height - vCursor + top])
@@ -141,7 +140,6 @@ class File:
                     surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours["def"])
                 screen.blit(surface, [x, i * fontDtb.height - vCursor + top])
                 x += fontDtb.selected.size(self.parsed[i][w][1])[0]
-                charX += len(self.parsed[i][w][1])
                 
         if on:
             temp = 0
@@ -394,8 +392,6 @@ class textCursor:
                 self.pos[1] -= 1
                 self.pos[0] = len(files[openFile].lines[self.pos[1]])
 
-            
-                
         if keyboard.keys[K_UP]:
             if initialClick[0] != -1 and not keyboard.modifiers[1]:
                 initialClick[0] = -1
@@ -471,7 +467,6 @@ class textCursor:
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
             if isSelection:
-                
                 if startY == endY:
                     files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
                     files[openFile].updateLine(startY)
@@ -508,7 +503,9 @@ class textCursor:
 
         #delete chars before cursor
         elif keyboard.keys[K_BACKSPACE]:
-            if isSelection:      
+            
+            if isSelection:
+                
                 if startY == endY:
                     files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
                     files[openFile].updateLine(startY)
@@ -701,7 +698,6 @@ syntaxDtb = syntaxDatabase("manifest.txt")
 files = [File("files/textEdit.py")]
 
 fontDtb = fontDatabase("assets/fonts", 18)
-fontDtb.setActiveByName("consola")
 themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"], "dark")
 guiComponents = guiManager(loadImages("assets/images/GUI"))
 

@@ -24,9 +24,9 @@ class Mouse(object):
                 self.buttons[event.button] = False
                     
     def update(self):
-        self.lastState = self.clicked
-
         self.pos = pygame.mouse.get_pos()
+        
+        self.lastState = self.clicked
         
         self.lastpos[1][0] = self.lastpos[0][0]
         self.lastpos[1][1] = self.lastpos[0][1]
