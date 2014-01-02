@@ -1,0 +1,10 @@
+{
+	"fontName": "Anonymous Pro",
+
+	"styles":{
+		"regular": "Anonymous Pro.ttf",
+		"bold": "Anonymous Pro B.ttf",
+		"italic": "Anonymous Pro I.ttf",
+		"boldItalic": "Anonymous Pro BI.ttf"
+	}
+}

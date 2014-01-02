@@ -1,16 +1,86 @@
-GROUPCOLOURS
-	group0|255,165,0
-	group1|255,20,147
-	group2|160,3,240
-	group3|255,0,0
-	def|0,0,0
-	num|0,0,207
-	str|0,170,0
-	cmt|255,0,0
-/GROUPCOLOURS
-BGCOLOUR|255,255,255
-LINECOLOUR|240, 240, 240
-CURSORCOLOUR|0,0,0
-SELECTION|180, 180, 180
-LINENUMBERS|0
-BODYFONT|Consolas
+{
+	"name": "default",
+
+	"settings":[
+		{
+			"background":[39, 40, 34],
+			"lineHighlight":[62, 61, 50],
+			"cursorColour":[0, 0, 0],
+			"selections":[157, 85, 15],
+			"lineNumbers":0,
+			"bodyFont": "AnonymousPro"
+		},
+		{
+			"group": "group0",
+			"settings":{
+				"colour":[249, 38, 114],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "group1",
+			"settings":{
+				"colour":[249, 38, 114],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "group2",
+			"settings":{
+				"colour":[102, 217, 239],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "group3",
+			"settings":{
+				"colour":[255, 0, 0],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "group2",
+			"settings":{
+				"colour":[102, 217, 239],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "def",
+			"settings":{
+				"colour":[255, 255, 255],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "num",
+			"settings":{
+				"colour":[174, 129, 255],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "str",
+			"settings":{
+				"colour":[129, 255, 174],
+				"style":"regular"
+			}
+
+		},
+		{
+			"group": "cmt",
+			"settings":{
+				"colour":[255, 0, 0],
+				"style":"regular"
+			}
+
+		}
+	]
+}

@@ -1,0 +1,10 @@
+{
+	"fontName": "Century Gothic",
+
+	"styles":{
+		"regular": "GOTHIC.ttf",
+		"bold": "GOTHICB.ttf",
+		"italic": "GOTHICI.ttf",
+		"boldItalic": "GOTHICBI.ttf"
+	}
+}

@@ -1,4 +1,4 @@
-import pygame, re, os
+import pygame, re, os, json
 from pygame.locals import *
 from mouseHandler import *
 from keyboardHandler import *
@@ -34,7 +34,13 @@ class File:
             self.parsed.append(self.parseLine(i))
             
     def parseLine(self, line):
-        global syntaxDtb
+        global syntaxDtb, right
+
+        lineWidth = fontDtb.bodyFont.styles["regular"].size(line)[0]
+        if lineWidth > right:
+            right = lineWidth
+        del lineWidth
+        
         indeces = []
         keysIn = []
         
@@ -94,8 +100,15 @@ class File:
             if string != "":
                  final.append([False, string])
         return final
-        
-    
+
+    def longestLine(self):
+        longest = 0
+        lHold = ""
+        for line in self.lines:
+            if len(line) > longest:
+                longest = len(line)
+                lHold = line
+        return lHold
 
     def updateLine(self, lineNum):
 
@@ -111,7 +124,35 @@ class File:
         del self.lines[src]
         for i in range(dest, len(self.lines)):
             self.updateLine(i)
-        fontDtb.adjustScale(0)
+        fontDtb.adjustScale()
+
+    def parsedSize(self, position):
+        charX = 0
+        x = position[0]
+        y = position[1]
+        width = 0
+        i = 0
+        while i < len(self.parsed[y]):
+            if charX + len(self.parsed[y][i][1]) > x:
+                if self.parsed[y][i][0]:
+                    style = themeDtb.active.groups[self.parsed[y][i][2]].settings["style"]
+                    partSize = fontDtb.bodyFont.styles[style].size(self.parsed[y][i][1][:x - charX])[0]
+                else:
+                    style = themeDtb.active.groups["def"].settings["style"]
+                    partSize = fontDtb.bodyFont.styles[style].size(self.parsed[y][i][1][:x - charX])[0]
+                return width + partSize
+            else:
+                if self.parsed[y][i][0]:
+                    style = themeDtb.active.groups[self.parsed[y][i][2]].settings["style"]
+                    partSize = fontDtb.bodyFont.styles[style].size(self.parsed[y][i][1])[0]
+                else:
+                    style = themeDtb.active.groups["def"].settings["style"]
+                    partSize = fontDtb.bodyFont.styles[style].size(self.parsed[y][i][1])[0]
+                width += partSize
+                charX += len(self.parsed[y][i][1])
+            i += 1
+        style = themeDtb.active.groups["def"].settings["style"]
+        return width
         
         
     def drawFile(self):
@@ -119,27 +160,29 @@ class File:
         buff = 0
         if drawLineN:
             buff = 5
-            sideBuff = fontDtb.selected.size(str(len(self.parsed)))[0] + 4
-            pygame.draw.line(screen, themeDtb.colours["def"], [sideBuff, 0], [sideBuff, windh], 1)
-            #pygame.draw.rect(screen, themeDtb.colours["def"], [0, top, sideBuff, windh], 1)
+            sideBuff = fontDtb.bodyFont.styles["regular"].size(str(len(self.parsed)))[0] + 4
 
         #Screen scope range
-        scope = range(vCursor / fontDtb.height, ((vCursor + windh) / fontDtb.height) \
-                      if ((vCursor + windh) / fontDtb.height) < len(self.parsed) else len(self.parsed))
+        scope = range(vCursor / fontDtb.bodyFont.height, ((vCursor + windh) / fontDtb.bodyFont.height) \
+                      if ((vCursor + windh) / fontDtb.bodyFont.height) < len(self.parsed) else len(self.parsed))
         for i in scope:
             x = 0
             if drawLineN:
-                lineN = fontDtb.selected.render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.colours["def"])
-                screen.blit(lineN, [x + 2, i * fontDtb.height - vCursor + top])
                 x += sideBuff + buff
 
             for w in range(len(self.parsed[i])):
+                
                 if self.parsed[i][w][0]:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours[self.parsed[i][w][2]])
+                    style = themeDtb.active.groups[self.parsed[i][w][2]].settings["style"]
+                    surface = fontDtb.bodyFont.styles[style].render(self.parsed[i][w][1], 100, themeDtb.active.groups[self.parsed[i][w][2]].settings["colour"])
+                    screen.blit(surface, [x - hCursor, i * fontDtb.bodyFont.height - vCursor + top])
+                    x += fontDtb.bodyFont.styles[style].size(self.parsed[i][w][1])[0]
                 else:
-                    surface = fontDtb.selected.render(self.parsed[i][w][1], 100, themeDtb.colours["def"])
-                screen.blit(surface, [x, i * fontDtb.height - vCursor + top])
-                x += fontDtb.selected.size(self.parsed[i][w][1])[0]
+                    style = themeDtb.active.groups["def"].settings["style"]
+                    surface = fontDtb.bodyFont.styles[style].render(self.parsed[i][w][1], 100, themeDtb.active.groups["def"].settings["colour"])
+                    screen.blit(surface, [x - hCursor, i * fontDtb.bodyFont.height - vCursor + top])
+                    x += fontDtb.bodyFont.styles[style].size(self.parsed[i][w][1])[0]
+                
                 
         if on:
             temp = 0
@@ -147,9 +190,16 @@ class File:
                 temp = 4
             for i in range(len(textCursors)):
                 if textCursors[i].pos[1] in scope:
-                    cursSlice = self.lines[textCursors[i].pos[1]][:textCursors[i].pos[0]]
-                    pygame.draw.rect(screen, cursorColour, [fontDtb.selected.size(cursSlice)[0] + sideBuff + temp, \
-                                                         textCursors[i].pos[1] * fontDtb.height + 2 + top - vCursor, 2, fontDtb.height - 4], 0)
+                    x = textCursors[i].pos[0]
+                    y = textCursors[i].pos[1]
+                    pygame.draw.rect(screen, themeDtb.active.settings["cursorColour"], [self.parsedSize([x, y]) + sideBuff + temp - hCursor, \
+                                                         textCursors[i].pos[1] * fontDtb.bodyFont.height + 2 + top - vCursor, 2, fontDtb.bodyFont.height - 4], 0)
+        if drawLineN:
+            pygame.draw.rect(screen, themeDtb.active.settings["background"], [0, top, sideBuff, windh], 0)
+            pygame.draw.line(screen, themeDtb.active.groups["def"].settings["colour"], [sideBuff, 0], [sideBuff, windh], 1)
+            for i in scope:
+                lineN = fontDtb.bodyFont.styles["regular"].render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.active.groups["def"].settings["colour"])
+                screen.blit(lineN, [2, i * fontDtb.bodyFont.height - vCursor + top])
         
 class keyGroup:
     def __init__(self, colour, words):
@@ -172,15 +222,18 @@ class highlight:
             warn("Cannot open " + self.path)
             return
         contents = []
+        
         line = config.readline().rstrip("\n")
-        comments = line
+        cmntSplit = line.split("|")[-1].split(",")
+        
         while line:
             line = config.readline().rstrip("\n")
             contents.append(line)
         config.close()
-        cmntSplit = comments.split("|")[-1].split(",")
+        
         self.comt[0] = cmntSplit[0]
         self.comt[1] = cmntSplit[1]
+        
         knownColours = []
         cur = 0
         contents = "".join(contents)
@@ -247,11 +300,15 @@ class syntaxDatabase:
                 return i
         return -1
 
+class fontObj:
+    def __init__(self):
+        pass
+
 class fontDatabase:
     extensions = ["fon", "ttf"]
     def __init__(self, path, fontSize):
         self.path = path
-        self.fontSize = fontSize
+        self.bodySize = fontSize
         self.guiSize = 18
         try:
             self.fonts = os.listdir(self.path)
@@ -260,36 +317,56 @@ class fontDatabase:
             return
         
         self.active = 2
-        self.guiFont = self.loadFont(self.fonts[0], self.guiSize)
-        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
-        self.height = self.selected.size("I")[1]
-        self.guiHeight = self.guiFont.size("I")[1]
+        self.bodyFont = None
+        #self.guiFont = self.loadFont(self.fonts[0], self.guiSize)
 
-    def loadFont(self, font, size):
-        return pygame.font.Font(self.path + "/" + font, size)
+    def loadFont(self, name, size):
+        newFont = fontObj()
+        fontManifest = open(self.path + "/" + name + "/manifest.man")
+        fontData = json.load(fontManifest)
+        fontManifest.close()
 
-    def setActiveByName(self, name):
-        if name.count(".") == 0:
-            for i in range(len(fontDatabase.extensions)):
-                if self.fonts.count(name + "." + fontDatabase.extensions[i]) > 0:
-                    self.active = self.fonts.index(name + "." +  fontDatabase.extensions[i])
-                    self.adjustScale(0)
-
-        elif name.count(".") == 1:
-            if self.fonts.count(name) > 0:
-                self.active = self.fonts.index(name)
-                self.adjustScale(0)
-
-    def adjustScale(self, size):
-        global bottom, scale
-        self.fontSize += size
-        self.selected = self.loadFont(self.fonts[self.active], self.fontSize)
-        self.height = self.selected.size("I")[1]
-        bottom = len(files[openFile].lines) * self.height
-        scale = self.height * 3
+        newFont.name = fontData["fontName"]
+        newFont.styles = {}
         
+        newFont.styles["regular"] = pygame.font.Font(self.path + "/" + name + "/" + fontData["styles"]["regular"], size)
+        newFont.styles["bold"] = pygame.font.Font(self.path + "/" + name + "/" + fontData["styles"]["bold"], size)
+        newFont.styles["italic"] = pygame.font.Font(self.path + "/" + name + "/" + fontData["styles"]["italic"], size)
+        newFont.styles["boldItalic"] = pygame.font.Font(self.path + "/" + name + "/" + fontData["styles"]["boldItalic"], size)
+
+        newFont.height = newFont.styles["regular"].size("I")[1]
+
+        return newFont
+
+    def setActiveByName(self, path, size):
+        global bottom, right
+        self.bodySize = size
+        self.bodyFont = self.loadFont(path, self.bodySize)
+        if len(files) != 0:
+            bottom = len(files[openFile].lines) * self.bodyFont.height
+            right = self.bodyFont.styles["regular"].size(files[openFile].longestLine())[0]
+            scale = self.bodyFont.height * 3
+
+    def adjustScale(self, size = None):
+        global bottom, right, scale
+        if size == None:
+            size = self.bodySize
+        self.bodySize = size
+        self.updateFont()
+        bottom = len(files[openFile].lines) * self.bodyFont.height
+        right = self.bodyFont.styles["regular"].size(files[openFile].longestLine())[0]
+        scale = self.bodyFont.height * 3
+
     def updateFont(self):
-        self.selected = self.fonts[self.active]
+        self.bodyFont = self.loadFont(themeDtb.active.settings["bodyFont"], self.bodySize)   
+        
+class group:
+    def __init__(self):
+        pass
+
+class theme:
+    def __init__(self):
+        pass
 
 class themeDatabase:
     def __init__(self, paths, name = "default"):
@@ -300,57 +377,70 @@ class themeDatabase:
             names = os.listdir(path)
             for i in range(len(names)):
                 self.nameList += [names[i].split(".")[0]]
-        self.active = [0, 1]
-        self.colours = {}
+        self.pathIndex = [1, 0]
+        self.defaultTheme = self.loadTheme("user/themes/prop/default")
+        self.active = None
         self.setActiveByName(name)
     
     def setActiveByName(self, name):
-        for i in range(len(self.themeNames)):
-            if self.themeNames[i].count(name + ".tme") > 0:
-                self.active[0] = i
-                self.active[1] = self.themeNames[i].index(name + ".tme")
-                newColours = self.loadTheme(self.themeNames[self.active[0]][0] + "/" + self.themeNames[self.active[0]][self.active[1]])
-                for key in newColours:
-                    self.colours[key] = newColours[key]
+        nameIndex = self.getPathIndex(name)
+        if nameIndex != None:
+            self.active = self.loadTheme(self.themeNames[nameIndex[0]][0] + "/" + self.themeNames[nameIndex[0]][nameIndex[1]])
+            self.pathIndex[0] = nameIndex[0]
+            self.pathIndex[1] = nameIndex[1]
+            fontDtb.setActiveByName(self.active.settings["bodyFont"], 18)
+
+    def getPathIndex(self, name):
+        pathName = addExtension(name, "tme")
+        if pathName != None:
+            for i in range(len(self.themeNames)):
+                if self.themeNames[i].count(pathName) > 0:
+                    return [i, self.themeNames[i].index(pathName)]
+            return -1
 
     def indexOfName(self, name):
-        count = 0
-        for i in range(len(self.themeNames)):
-            if self.themeNames[i].count(name + ".tme") > 0:
-                return count + self.themeNames[i].index(name + ".tme") - 1
-            count += len(self.themeNames[i]) - 1
+        pathName = addExtension(name, "tme")
+        if pathName != None:
+            count = 0
+            for i in range(len(self.themeNames)):
+                if self.themeNames[i].count(pathName) > 0:
+                    return count + self.themeNames[i].index(pathName) - 1
+                count += len(self.themeNames[i]) - 1
 
     def loadTheme(self, path):
-        global bgColour, lineColour, cursorColour,\
-               selectionColour
         
+        newTheme = theme()
+        path = addExtension(path, "tme")
         themeFile = open(path)
-        line = themeFile.readline().rstrip('\n')
-        colours = {}
-        while line:
-            split = line.split('|')
-            if line == "GROUPCOLOURS":
-                line = themeFile.readline().rstrip('\n').lstrip('\t')
-                while line!="/GROUPCOLOURS":
-                    split = line.split('|')
-                    colours[split[0]] = map(int,split[1].split(','))
-                    line = themeFile.readline().rstrip('\n').lstrip('\t')
-            elif split[0] == "BGCOLOUR":
-                bgColour = map(int, split[1].split(","))
-            elif split[0] == "LINECOLOUR":
-                lineColour = map(int, split[1].split(","))
-            elif split[0] == "CURSORCOLOUR":
-                cursorColour = map(int, split[1].split(","))
-            elif split[0] == "SELECTION":
-                selectionColour = map(int, split[1].split(","))
-            elif split[0] == "LINENUMBERS":
-                drawLineN=bool(int(split[1]))
-            elif split[0] == "BODYFONT":
-                fontDtb.setActiveByName(split[1])
-            line = themeFile.readline().rstrip('\n')
+        themeData = json.load(themeFile)
         themeFile.close()
-        return colours
+        newTheme.name = themeData["name"]
+
+        newTheme.settings = {}
+        for setting in themeData["settings"][0]:
+            newTheme.settings[setting] = themeData["settings"][0][setting]
+
+        if path.split("/")[-1] != "default.tme":
+            for setting in self.defaultTheme.settings:
+                if setting not in newTheme.settings:
+                    newTheme.settings[setting] = self.defaultTheme.settings[setting]
+
+        newTheme.groups = {}
+        for i in range(1, len(themeData["settings"])):
+            newGroup = group()
+            name = themeData["settings"][i]["group"]
+            newGroup.settings = {}
+            for setting in themeData["settings"][i]["settings"]:
+                newGroup.settings[setting] = themeData["settings"][i]["settings"][setting]
+
+            if path.split("/")[-1] != "default.tme":
+                for setting in self.defaultTheme.groups[name].settings:
+                    if setting not in newGroup.settings:
+                        newGroup.settings[setting] = self.defaultTheme.groups[name].settings[setting]
                 
+            newTheme.groups[name] = newGroup   
+        return newTheme
+
 class textCursor:
     def __init__(self, pos, index = -1):
         self.pos = pos
@@ -406,10 +496,10 @@ class textCursor:
                 if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
                     self.pos[0] = len(files[openFile].lines[self.pos[1]])
                     
-                if self.pos[1] * fontDtb.height < vCursor:
-                        vCursor = self.pos[1] * fontDtb.height - windh / 2
-                elif (self.pos[1] - 1) * fontDtb.height < vCursor:
-                    vCursor -= fontDtb.height
+                if self.pos[1] * fontDtb.bodyFont.height < vCursor:
+                        vCursor = self.pos[1] * fontDtb.bodyFont.height - windh / 2
+                elif (self.pos[1] - 1) * fontDtb.bodyFont.height < vCursor:
+                    vCursor -= fontDtb.bodyFont.height
                     
                 self.pos[1] -= 1
 
@@ -429,10 +519,10 @@ class textCursor:
                     self.pos[0] = len(files[openFile].lines[self.pos[1]])
                 self.pos[1] += 1
                     
-            if self.pos[1] * fontDtb.height > vCursor + windh:
-                vCursor = self.pos[1] * fontDtb.height - windh / 2
-            elif (self.pos[1] + 3) * fontDtb.height > vCursor + windh:
-                vCursor += fontDtb.height
+            if self.pos[1] * fontDtb.bodyFont.height > vCursor + windh:
+                vCursor = self.pos[1] * fontDtb.bodyFont.height - windh / 2
+            elif (self.pos[1] + 3) * fontDtb.bodyFont.height > vCursor + windh:
+                vCursor += fontDtb.bodyFont.height
                 
         
         #add string to cur line in place
@@ -462,7 +552,7 @@ class textCursor:
             #shift cursor pos down a line and to the start
             self.pos[1] += 1
             self.pos[0] = 0
-            bottom = len(files[openFile].lines) * fontDtb.height
+            bottom = len(files[openFile].lines) * fontDtb.bodyFont.height
 
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
@@ -640,13 +730,22 @@ def padWord(word):
         else:
             padded += word[j]
 
-    
     return padded
 
-
-global colours, syntaxDtb, fontDtb, screen, vCursor, drawLineN, bgColour, lineColour,\
-       cursorColour, selectionColour, bottom, top, openFile, scale, tabWidth, textCursors,\
-       openFile, dtb, startY, endY, startX, endX, isSelection
+def addExtension(name, extension):
+    if name.count(".") > 1:
+        return None
+    elif name.count(".") == 1:
+        if name.split(".")[-1] == extension:
+            return name
+        else:
+            return None
+    else:
+        return name + "." + extension
+    
+global colours, syntaxDtb, fontDtb, screen, vCursor, hCursor, drawLineN, bgColour, lineColour,\
+       cursorColour, selectionColour, bottom, top, right, openFile, scale, tabWidth, \
+       textCursors, openFile, dtb, startY, endY, startX, endX, isSelection
 
 #initialize pygame
 pygame.init()
@@ -669,6 +768,9 @@ selectionColour = [180, 180, 180]
 #Top and bottom boundaries, top variable
 top, bottom = 30, 0
 
+#right boundary
+right = 0
+
 #spaces in a tab
 tabWidth = 4
 
@@ -682,8 +784,9 @@ startY, endY, startX, endX = 0, 0, 0, 0
 #is there a selection bool
 isSelection = False
 
-#vertical scroll pos
+#vertical and horizontal scroll pos
 vCursor = 0
+hCursor = 0
 
 #Draw line numbers bool
 drawLineN = True
@@ -693,12 +796,16 @@ screen = pygame.display.set_mode([windw, windh], pygame.RESIZABLE)
 #open file index
 openFile = 0
 
+files = []
+
 syntaxDtb = syntaxDatabase("manifest.txt")
-
-files = [File("files/textEdit.py")]
-
-fontDtb = fontDatabase("assets/fonts", 18)
+fontDtb = fontDatabase("assets/fonts", 20)
 themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"], "dark")
+
+files.append(File("files/textEdit.py"))
+fontDtb.adjustScale()
+
+
 guiComponents = guiManager(loadImages("assets/images/GUI"))
 
 #initializing mouse and keyboard
@@ -709,14 +816,14 @@ textCursors = []
 textCursors.append(textCursor([0, 0]))
 initialClick = [-1, -1]
 
-fontDtb.adjustScale(0)
+
 scale = 100
 pygame.key.set_repeat(250, 30)
 clock = pygame.time.Clock()
 
-guiComponents.setFont(fontDtb.guiFont)
-guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], [x.split(".")[0] for x in fontDtb.fonts], fontDtb.active), "fontSelector")
-guiComponents.addItem(DropDown([windw - 600, 0], [200, 26], themeDtb.nameList, themeDtb.indexOfName("dark")), "themeSelector")
+guiComponents.setFont(pygame.font.SysFont("Courier", 15))
+guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], ["hi"], 0), "fontSelector")
+guiComponents.addItem(DropDown([windw - 600, 0], [200, 26], ["hi"], 0), "themeSelector")
 guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 time = 0
@@ -762,17 +869,17 @@ while run:
     
         if mouse.buttons[4]:
             if keyboard.modifiers[0]:
-                fontDtb.adjustScale(2)
-                vCursor += fontDtb.height
+                fontDtb.adjustScale(fontDtb.bodySize + 2)
+                vCursor += fontDtb.bodyFont.height
                 
             elif  vCursor > 0:
                 vCursor -= scale
                 
         elif mouse.buttons[5]:
             if keyboard.modifiers[0]:
-                if fontDtb.fontSize - 2  > 2:
-                    fontDtb.adjustScale(-2)
-                    vCursor -= fontDtb.height
+                if fontDtb.bodySize - 2  > 2:
+                    fontDtb.adjustScale(fontDtb.bodySize - 2)
+                    vCursor -= fontDtb.bodyFont.height
                 
             elif vCursor + windh < bottom + top:
                 vCursor += scale
@@ -781,10 +888,18 @@ while run:
         if vCursor >= 0 and vCursor + windh <= bottom + top:
             vCursor += (mouse.lastpos[1][1] - mouse.lastpos[0][1]) * 4
 
+        if hCursor >= 0 and hCursor + windw <= right:
+            hCursor += (mouse.lastpos[1][0] - mouse.lastpos[0][0])
+
     if vCursor < 0:
         vCursor = 0
     elif vCursor + windh > bottom + top and bottom - windh >= 0:
         vCursor = bottom - windh + top
+
+    if hCursor < 0:
+        hCursor = 0
+    elif hCursor + windw > right and right > windw:
+        hCursor = right - windw
         
     mouse.update()
     keyboard.buildString()
@@ -798,8 +913,8 @@ while run:
             time = 0
             
     if mouse.clicked and mouse.pos[1] > top:
-        xPos = 0
-        yPos = (mouse.pos[1] + vCursor - top) / fontDtb.height
+        xPos = hCursor
+        yPos = (mouse.pos[1] + vCursor - top) / fontDtb.bodyFont.height
         nLines = len(files[openFile].lines)
         if yPos > nLines - 1:
             yPos = nLines - 1
@@ -809,15 +924,22 @@ while run:
         charX = -4
         
         if drawLineN:
-            charX = fontDtb.selected.size(str(nLines))[0]
-            
-        sliceMetrics = fontDtb.selected.metrics(files[openFile].lines[yPos])
-        mouseRect = pygame.Rect(mouse.pos[0], mouse.pos[1] + vCursor - top, 1, 1)
-        if drawLineN and mouseRect.x < fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9:
-            mouseRect.x = fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9
+            charX = fontDtb.bodyFont.styles["regular"].size(str(nLines))[0]
+        sliceMetrics = []
+        for i in range(len(files[openFile].parsed[yPos])):
+            if files[openFile].parsed[yPos][i][0]:
+                style = themeDtb.active.groups[files[openFile].parsed[yPos][i][2]].settings["style"]
+                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(files[openFile].parsed[yPos][i][1])
+            else:
+                style = themeDtb.active.groups["def"].settings["style"]
+                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(files[openFile].parsed[yPos][i][1])
+        #sliceMetrics = fontDtb.bodyFont.styles["regular"].metrics(files[openFile].lines[yPos])
+        mouseRect = pygame.Rect(mouse.pos[0] + hCursor, mouse.pos[1] + vCursor - top, 1, 1)
+        if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9:
+            mouseRect.x = fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9
         picked = False
         for i in range(nChars):
-            if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.height, sliceMetrics[i][4], fontDtb.height)):
+            if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.bodyFont.height, sliceMetrics[i][4], fontDtb.bodyFont.height)):
                 xPos = i
                 picked = True
                 break
@@ -859,46 +981,50 @@ while run:
         
     drawLineN = guiComponents.items["lnToggle"].state
     if guiComponents.items["fontSelector"].newSelection() and guiComponents.items["fontSelector"].selected != -1:
-        fontDtb.active = guiComponents.items["fontSelector"].selected
-        fontDtb.adjustScale(0)
+        pass
+        #fontDtb.active = guiComponents.items["fontSelector"].selected
+        #fontDtb.adjustScale(0)
 
     if guiComponents.items["themeSelector"].newSelection() and guiComponents.items["themeSelector"].selected != -1:
         themeDtb.setActiveByName(guiComponents.items["themeSelector"].items[guiComponents.items["themeSelector"].selected])
 
-    screen.fill(bgColour)
+    screen.fill(themeDtb.active.settings["background"])
     
 
     if isSelection:
         for i in range(startY, endY + 1):
             lineWidth = 0
-            actualX = 0
-            actualY = fontDtb.height * i + top - vCursor
+            actualX = -hCursor
+            actualY = fontDtb.bodyFont.height * i + top - vCursor
             if drawLineN:
-                actualX += fontDtb.selected.size(str(len(files[openFile].lines)))[0] + 9
+                actualX += fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9
                 
             if i == startY and i == endY:
-                tX = min(startX, endX)
-                eX = max(startX, endX)
-                actualX += fontDtb.selected.size(files[openFile].lines[i][:tX])[0]
                 
-                lineWidth = fontDtb.selected.size(files[openFile].lines[i][tX:eX])[0]
+                actualX += files[openFile].parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:startX])[0]
+                
+                lineWidth = files[openFile].parsedSize([endX, i]) - files[openFile].parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][startX:endX])[0]
             elif i == startY:
-                actualX += fontDtb.selected.size(files[openFile].lines[i][:startX])[0]
+                actualX += files[openFile].parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:startX])[0]
                 lineWidth = windw - actualX
             elif i == endY:
-                lineWidth = fontDtb.selected.size(files[openFile].lines[i][:endX])[0]
+                lineWidth = files[openFile].parsedSize([endX, i])
+                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:endX])[0]
             else:
                 lineWidth = windw
 
-            pygame.draw.rect(screen, selectionColour, (actualX, fontDtb.height * i - vCursor + top, lineWidth, fontDtb.height), 0)
+            pygame.draw.rect(screen, themeDtb.active.settings["selections"], (actualX, fontDtb.bodyFont.height * i - vCursor + top, lineWidth, fontDtb.bodyFont.height), 0)
     else:
         for j in range(len(textCursors)):
-            pygame.draw.rect(screen, lineColour, [0, textCursors[j].pos[1] * fontDtb.height - vCursor + top, windw - 5, fontDtb.height], 0)
+            pygame.draw.rect(screen, themeDtb.active.settings["lineHighlight"], [0, textCursors[j].pos[1] * fontDtb.bodyFont.height - vCursor + top, windw - 5, fontDtb.bodyFont.height], 0)
 
     files[openFile].drawFile()
         
     #Draw top bar
-    pygame.draw.rect(screen, bgColour, [0, 0, windw, top], 0)
+    pygame.draw.rect(screen, themeDtb.active.settings["background"], [0, 0, windw, top], 0)
     
     #Draw all gui items
     guiComponents.draw(screen)

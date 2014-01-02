@@ -1,0 +1,10 @@
+{
+	"fontName": "Consola",
+
+	"styles":{
+		"regular": "consola.ttf",
+		"bold": "consolab.ttf",
+		"italic": "consolai.ttf",
+		"boldItalic": "consolaz.ttf"
+	}
+}

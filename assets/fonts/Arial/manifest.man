@@ -1,0 +1,10 @@
+{
+	"fontName": "Arial",
+
+	"styles":{
+		"regular": "arial.ttf",
+		"bold": "arialbd.ttf",
+		"italic": "ariali.ttf",
+		"boldItalic": "arialbi.ttf"
+	}
+}
