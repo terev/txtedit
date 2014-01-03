@@ -200,7 +200,43 @@ class File:
             for i in scope:
                 lineN = fontDtb.bodyFont.styles["regular"].render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.active.groups["def"].settings["colour"])
                 screen.blit(lineN, [2, i * fontDtb.bodyFont.height - vCursor + top])
+
+    def add(self, string, pos):
+        self.lines[pos[1]] = strInsert(string, self.lines[pos[1]], pos[0])
+        self.updateLine(pos[1])
+
+    def addLine(self, pos):
+        cut = self.lines[pos[1]][pos[0]:]
+        self.lines[pos[1]] = self.lines[pos[1]][:pos[0]]
+        self.lines.insert(pos[1] + 1, cut)
+        self.parsed.insert(pos[1] + 1, self.parseLine(cut))
+        self.updateLine(pos[1])
+
+    def remove(self, startX, startY, endX, endY):
+        if startY == endY:
+            self.lines[startY] = self.lines[startY][:startX] + self.lines[startY][endX:]
+            self.updateLine(startY)
+        else:
+            self.lines = self.lines[:startY] + [self.lines[startY][:startX]] + ([self.lines[endY][endX:]] + self.lines[endY + 1:])
+            
+            for i in range(startY + 1, endY):
+                self.parsed.pop(startY + 1)
+                
+            self.mergeLines(startY, startY + 1)
+                
+            self.updateLine(startY)
+            if startY < len(self.lines) - 1:
+                self.updateLine(startY + 1)
+
+    def delete(self, pos):
+        self.lines[pos[1]] = self.lines[pos[1]][:pos[0]] + self.lines[pos[1]][pos[0] + 1:]
+        self.updateLine(pos[1])
+
+    def backspace(self, pos):
+        self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - 1] + self.lines[pos[1]][pos[0]:]
+        self.updateLine(pos[1])
         
+    
 class keyGroup:
     def __init__(self, colour, words):
         self.colour = colour
@@ -528,26 +564,19 @@ class textCursor:
         #add string to cur line in place
         if keyboard.string != "":
             initialClick = [-1, -1]
-            files[openFile].lines[self.pos[1]] = strInsert(keyboard.string, files[openFile].lines[self.pos[1]], self.pos[0])
+            files[openFile].add(keyboard.string, self.pos)
             self.pos[0] += len(keyboard.string)
-            files[openFile].updateLine(self.pos[1])
 
         #shift line in cursor place by tab width amount
         elif keyboard.keys[K_TAB]:
             initialClick = [-1, -1]
-            files[openFile].lines[self.pos[1]] =  strInsert(" " * tabWidth, files[openFile].lines[self.pos[1]], self.pos[0])
+            files[openFile].addToLine(" " * tabWidth, self.pos)
             self.pos[0] += tabWidth
-            
-            files[openFile].updateLine(self.pos[1])
 
         #cut line in cursor place and move to new line
         elif keyboard.keys[K_RETURN]:
             initialClick = [-1, -1]
-            cut = files[openFile].lines[self.pos[1]][self.pos[0]:]
-            files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]]
-            files[openFile].lines.insert(self.pos[1] + 1, cut)
-            files[openFile].parsed.insert(self.pos[1] + 1, files[openFile].parseLine(cut))
-            files[openFile].updateLine(self.pos[1])
+            files[openFile].addLine(self.pos)
 
             #shift cursor pos down a line and to the start
             self.pos[1] += 1
@@ -557,34 +586,14 @@ class textCursor:
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
             if isSelection:
-                if startY == endY:
-                    files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
-                    files[openFile].updateLine(startY)
-                    self.pos[0] = startX
-                else:
-                    files[openFile].lines = files[openFile].lines[:startY] + [files[openFile].lines[startY][:startX]] + \
-                                             ([files[openFile].lines[endY][endX:]] + files[openFile].lines[endY + 1:])
-                    
-                    for i in range(startY + 1, endY):
-                        files[openFile].parsed.pop(startY + 1)
-                        
-                    files[openFile].mergeLines(startY, startY + 1)
-                        
-                    files[openFile].updateLine(startY)
-                    if startY < len(files[openFile].lines) - 1:
-                        files[openFile].updateLine(startY + 1)
-
-                    self.pos[0] = startX
-                    self.pos[1] = startY
-
-                initialClick[0] = -1
-                initialClick[1] = -1
+                files[openFile].remove(startX, startY, endX, endY)
+                
+                self.pos = [startX, startY]
+                initialClick = [-1, -1]
             else:
                 #delete chars on same line
                 if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
-                    files[openFile].lines[self.pos[1]] = files[openFile].lines[self.pos[1]][:self.pos[0]] +\
-                                                         files[openFile].lines[self.pos[1]][self.pos[0] + 1:]
-                    files[openFile].updateLine(self.pos[1])
+                    files[openFile].delete(self.pos)
 
                 #merge line below onto current line
                 elif self.pos[1] < len(files[openFile].lines) - 1:
@@ -595,38 +604,15 @@ class textCursor:
         elif keyboard.keys[K_BACKSPACE]:
             
             if isSelection:
+                files[openFile].remove(startX, startY, endX, endY)
                 
-                if startY == endY:
-                    files[openFile].lines[startY] = files[openFile].lines[startY][:startX] + files[openFile].lines[startY][endX:]
-                    files[openFile].updateLine(startY)
-                    self.pos[0] = startX
-                else:
-                    files[openFile].lines = files[openFile].lines[:startY] + [files[openFile].lines[startY][:startX]] + \
-                                             ([files[openFile].lines[endY][endX:]] + files[openFile].lines[endY + 1:])
-                    
-                    for i in range(startY + 1, endY):
-                        files[openFile].parsed.pop(startY + 1)
-                        
-                    files[openFile].mergeLines(startY, startY + 1)
-                        
-                    files[openFile].updateLine(startY)
-                    if startY < len(files[openFile].lines) - 1:
-                        files[openFile].updateLine(startY + 1)
-
-                    self.pos[0] = startX
-                    self.pos[1] = startY
-
-                initialClick[0] = -1
-                initialClick[1] = -1
-                
+                self.pos = [startX, startY]
+                initialClick = [-1, -1]
             else:
                 #delete chars on cur line
                 if self.pos[0] > 0:
+                    files[openFile].backspace(self.pos)
                     
-                    files[openFile].lines[self.pos[1]] =  files[openFile].lines[self.pos[1]][:self.pos[0] - 1] +\
-                                                           files[openFile].lines[self.pos[1]][self.pos[0]:]
-                   
-                    files[openFile].updateLine(self.pos[1])
                     self.pos[0] -= 1
 
                 #merge cur line onto line above
@@ -828,6 +814,7 @@ guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 time = 0
 on = True
+style = themeDtb.active.groups["def"].settings["style"]
 
 run = True
 while run:
