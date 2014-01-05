@@ -1,4 +1,5 @@
 import pygame, re, os, json
+from tkFileDialog import askopenfilename
 from pygame.locals import *
 from mouseHandler import *
 from keyboardHandler import *
@@ -6,20 +7,27 @@ from guiHandler import *
 from imageStruct import *
 
 class File:
-    def __init__(self, path):
-        self.path = path
-        self.ext = ""
-        self.lines = []
-        self.parsed = []
-        self.loadFile()
+    def __init__(self, pathName):
+        self.lines = [""]
+        self.parsed = [[[False, ""]]]
+        if pathName[0]:
+            self.lines = []
+            self.parsed = []
+            self.path = pathName[1]
+            self.name = self.path.split("/")[-1].split(".")[0]
+            self.ext = self.path.split("/")[-1].split(".")[-1]
+            self.loadFile()
+            self.doneLoading = False
+        else:
+            self.name = pathName[1]
+            self.path = ""
+            self.ext = ""
+            self.doneLoading = True
+        self.currentlyParsed = 0
         
     def loadFile(self):
         global syntaxDtb
         
-        self.ext = self.path.split("/")[-1].split(".")[-1]
-        auto = syntaxDtb.isExt(self.ext)
-        if auto != -1:
-            syntaxDtb.active = syntaxDtb.configs[auto]
         try:
             thisFile = open(self.path, "r")
         except:
@@ -29,9 +37,19 @@ class File:
         for line in thisFile:
             self.lines.append(line.rstrip("\n"))
         thisFile.close()
-        
-        for i in self.lines:
-            self.parsed.append(self.parseLine(i))
+
+    def update(self):
+        #loads 300 lines at a time
+        if self.currentlyParsed < len(self.lines):
+            leftToLoad = len(self.lines) - self.currentlyParsed
+            load = 300
+            if load > leftToLoad:
+                load = leftToLoad
+            for i in range(self.currentlyParsed, self.currentlyParsed + load):
+                self.parsed.append(self.parseLine(self.lines[i]))
+            self.currentlyParsed += load
+        else:
+            self.doneLoading = True
             
     def parseLine(self, line):
         global syntaxDtb, right
@@ -40,66 +58,72 @@ class File:
         if lineWidth > right:
             right = lineWidth
         del lineWidth
-        
-        indeces = []
-        keysIn = []
-        
-        exprC = ["",""]
-        exprC[0] = "".join(["\\"+x for x in syntaxDtb.active.comt[0]])
-        exprC[1] = "".join(["\\"+x for x in syntaxDtb.active.comt[1]])
-        
-        commentExpr = exprC[0] + "+.*"
 
-        for match in re.finditer(commentExpr, line):
-
-            if match.span()[0] == 0 or (line[match.span()[0] - 1] != "'" and line[match.span()[0] - 1] != '"'):
-                indeces.append([match.span()[0]])
-                keysIn.append(match.group())
-
-        special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"[0-9]+\.?[0-9]*", line)
-        for i in range(len(special)):
-            cur = []
-            padded = padWord(special[i])
-            for match in re.finditer(padded, line):
-                cur.append(match.span()[0])
-            indeces.append(cur)
-            keysIn.append(special[i])
-
-        found = re.findall(r"[a-zA-Z_]+", line) + re.findall(r"[=!+/*-]+", line)
-
-        final = []
-        if len(found) > 0:
-            for l in range(len(found)):
-                if syntaxDtb.isKeyword(found[l]) and found[l] not in keysIn:
-                    keysIn.append(found[l])
-                    indeces.append(findAllKeys(found[l], line, padWord(found[l])))
-
-        if len(indeces) == 0:
+        if syntaxDtb.active == None:
             return [[False, line]]
-        
         else:
-            final = []
-            string = ""
-            k = 0
-            while k < len(line):
-                added = False
-                for j in range(len(indeces)):
-                    if k in indeces[j]:
-                        added = True
-                        if string != "":
-                            final.append([False, string])
-                        final.append([True, keysIn[j] , syntaxDtb.active.wordColour(keysIn[j])])
-                        string = ""
-                        k += len(keysIn[j])
-                        break
-                    
-                if not added and k < len(line):
-                    string += line[k]
-                    k += 1
+            indeces = []
+            keysIn = []
             
-            if string != "":
-                 final.append([False, string])
-        return final
+            exprC = ["",""]
+            exprC[0] = "".join(["\\"+x for x in syntaxDtb.active.settings["commentDelimiters"][0]])
+            exprC[1] = "".join(["\\"+x for x in syntaxDtb.active.settings["commentDelimiters"][1]])
+            
+            commentExpr = exprC[0] + "+.*"
+
+            for match in re.finditer(commentExpr, line):
+                if match.span()[0] == 0 or (line[match.span()[0] - 1] != "'" and line[match.span()[0] - 1] != '"'):
+                    indeces.append([match.span()[0]])
+                    keysIn.append(match.group())
+                    
+            #print re.findall(r"def\ +\w+(\(+.*?(?=\))\))", line)
+
+            #searches for strings, and numbers including floats
+            special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"[0-9]+\.?[0-9]*", line)
+            for i in range(len(special)):
+                cur = []
+                padded = padWord(special[i])
+                for match in re.finditer(padded, line):
+                    cur.append(match.span()[0])
+                indeces.append(cur)
+                keysIn.append(special[i])
+
+            #searches for keywords, and operators
+            found = re.findall(r"[a-zA-Z_]+", line) + re.findall(r"[=!+/*-]+", line)
+
+            final = []
+            if len(found) > 0:
+                for l in range(len(found)):
+                    if syntaxDtb.isKeyword(found[l]) and found[l] not in keysIn:
+                        keysIn.append(found[l])
+                        indeces.append(findAllKeys(found[l], line, padWord(found[l])))
+
+            if len(indeces) == 0:
+                return [[False, line]]
+            
+            else:
+                final = []
+                string = ""
+                k = 0
+                while k < len(line):
+                    added = False
+                    for j in range(len(indeces)):
+                        if k in indeces[j]:
+                            added = True
+                            if string != "":
+                                final.append([False, string])
+                            final.append([True, keysIn[j] , syntaxDtb.active.wordColour(keysIn[j])])
+                            string = ""
+                            k += len(keysIn[j])
+                            break
+                        
+                    if not added and k < len(line):
+                        string += line[k]
+                        k += 1
+                
+                if string != "":
+                     final.append([False, string])
+            return final
 
     def longestLine(self):
         longest = 0
@@ -110,20 +134,30 @@ class File:
                 lHold = line
         return lHold
 
-    def updateLine(self, lineNum):
+    def lineLength(self, lineNum):
+        if lineNum < self.numberOfLines():
+            return len(self.lines[lineNum])
+        return 0
 
+    def numberOfLines(self):
+        if not self.doneLoading:
+            return self.currentlyParsed
+        return len(self.lines)
+
+    def updateLine(self, lineNum):
         parsed = self.parseLine(self.lines[lineNum])
         self.parsed[lineNum] = parsed[:]
         
-
     def mergeLines(self, dest, src):
         self.parsed[dest] += self.parsed[src]
         self.lines[dest] += self.lines[src]
         
         del self.parsed[src]
         del self.lines[src]
-        for i in range(dest, len(self.lines)):
-            self.updateLine(i)
+        
+        self.updateLine(dest)
+        if dest < self.numberOfLines() - 1:
+            self.updateLine(dest + 1)
         fontDtb.adjustScale()
 
     def parsedSize(self, position):
@@ -132,6 +166,13 @@ class File:
         y = position[1]
         width = 0
         i = 0
+
+        if y < 0 or y >= self.numberOfLines():
+            
+            return 0
+        elif x < 0 or x > self.lineLength(y):
+            return 0
+
         while i < len(self.parsed[y]):
             if charX + len(self.parsed[y][i][1]) > x:
                 if self.parsed[y][i][0]:
@@ -151,7 +192,7 @@ class File:
                 width += partSize
                 charX += len(self.parsed[y][i][1])
             i += 1
-        style = themeDtb.active.groups["def"].settings["style"]
+
         return width
         
         
@@ -160,11 +201,11 @@ class File:
         buff = 0
         if drawLineN:
             buff = 5
-            sideBuff = fontDtb.bodyFont.styles["regular"].size(str(len(self.parsed)))[0] + 4
+            sideBuff = fontDtb.bodyFont.styles["regular"].size(str(self.numberOfLines()))[0] + 4
 
         #Screen scope range
         scope = range(vCursor / fontDtb.bodyFont.height, ((vCursor + windh) / fontDtb.bodyFont.height) \
-                      if ((vCursor + windh) / fontDtb.bodyFont.height) < len(self.parsed) else len(self.parsed))
+                      if ((vCursor + windh) / fontDtb.bodyFont.height) < self.numberOfLines() else self.numberOfLines())
         for i in scope:
             x = 0
             if drawLineN:
@@ -183,7 +224,6 @@ class File:
                     screen.blit(surface, [x - hCursor, i * fontDtb.bodyFont.height - vCursor + top])
                     x += fontDtb.bodyFont.styles[style].size(self.parsed[i][w][1])[0]
                 
-                
         if on:
             temp = 0
             if drawLineN:
@@ -197,8 +237,8 @@ class File:
         if drawLineN:
             pygame.draw.rect(screen, themeDtb.active.settings["background"], [0, top, sideBuff, windh], 0)
             pygame.draw.line(screen, themeDtb.active.groups["def"].settings["colour"], [sideBuff, 0], [sideBuff, windh], 1)
-            for i in scope:
-                lineN = fontDtb.bodyFont.styles["regular"].render(str(i + 1).rjust(len(str(len(self.parsed)))), 20, themeDtb.active.groups["def"].settings["colour"])
+            for i in range(self.numberOfLines()):
+                lineN = fontDtb.bodyFont.styles["regular"].render(str(i + 1).rjust(len(str(self.numberOfLines()))), 20, themeDtb.active.groups["def"].settings["colour"])
                 screen.blit(lineN, [2, i * fontDtb.bodyFont.height - vCursor + top])
 
     def add(self, string, pos):
@@ -235,20 +275,66 @@ class File:
     def backspace(self, pos):
         self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - 1] + self.lines[pos[1]][pos[0]:]
         self.updateLine(pos[1])
+
+    def checkChar(self, pos, char):
+        if pos[0] >= 0 and pos[0] < len(self.lines[pos[1]]):
+            return self.lines[pos[1]][pos[0]] == char
+        return False
+
+
+class FileManager:
+    def __init__(self, files = [], active = -1):
+        self.files = files
+        self.openIndex = active
+        self.open = None
+        for i in range(len(self.files)):
+            if type(self.files[i]) == str:
+                self.files[i] = File([True, self.files[i]])
+                
+        if self.openIndex != -1:
+            self.open = self.files[self.openIndex]
+            auto = syntaxDtb.isExt(self.open.ext)
+            if auto != -1:
+                syntaxDtb.changeActive(auto)
+
+    def update(self):
+        if len(self.files) == 0:
+            self.newEmptyFile()
+        else:
+            self.open.update()
+
+    def fileOpened(self):
+        return self.open != None
+
+    def openFile(self, path):
+        self.files.append(File([True, path]))
+        if self.open != None:
+            del self.open
+        self.open = self.files[len(self.files) - 1]
+        self.openIndex = len(self.files) - 1
+        auto = syntaxDtb.isExt(self.open.ext)
+        if auto != -1:
+            syntaxDtb.changeActive(auto)
+        fontDtb.adjustScale()
+
+    def newEmptyFile(self, name = "untitled"):
+        self.files.append(File([False, name]))
+        syntaxDtb.active = None
+        self.open = self.files[len(self.files) - 1]
+        self.openIndex = len(self.files) - 1
+
+    def fileDraw(self):
+        if self.open != None:
+            self.open.drawFile()
         
-    
-class keyGroup:
-    def __init__(self, colour, words):
-        self.colour = colour
-        self.words = words
     
 class highlight:
     def __init__(self, name, path, extenstions):
         self.name = name
         self.path = path
-        self.groups = []
-        self.comt = ["", ""]
+        self.groups = {}
         self.autoExt = extenstions
+        self.settings = {}
         self.getData()
         
     def getData(self):
@@ -258,35 +344,20 @@ class highlight:
             warn("Cannot open " + self.path)
             return
         contents = []
-        
-        line = config.readline().rstrip("\n")
-        cmntSplit = line.split("|")[-1].split(",")
-        
-        while line:
-            line = config.readline().rstrip("\n")
-            contents.append(line)
-        config.close()
-        
-        self.comt[0] = cmntSplit[0]
-        self.comt[1] = cmntSplit[1]
-        
-        knownColours = []
-        cur = 0
-        contents = "".join(contents)
-        parsed = re.findall(r'([A-Za-z][^{}]*)', contents)
-        parts = []
-        curpart = []
-        for i in range(0, len(parsed), 2):
-            parts.append([re.findall(r"\w+", parsed[i])[0], re.findall(r"[a-zA-Z0-9_=!+/*-]+", parsed[i + 1])])
-            
-        for i in range(len(parts)):
-            if parts[i][0] not in knownColours:
-                knownColours.append(parts[i][0])
-                self.groups.append(keyGroup(parts[i][0], parts[i][1]))
-            else:
-                for word in parts[i][1]:
-                    self.groups[knownColours.index(parts[i][0])].words.append(word)
 
+        data = json.load(config)
+        config.close()
+
+        for setting in data["settings"][0]:
+            self.settings[setting] = data["settings"][0][setting]
+
+        for i in range(1, len(data["settings"])):
+            groupName = data["settings"][i]["group"]
+            keyArray = []
+            for key in data["settings"][i]["keys"]:
+                keyArray.append(key)
+            self.groups[groupName] = keyArray
+                
     def wordColour(self, word):
         if isNum(word):
             return "num"
@@ -294,12 +365,13 @@ class highlight:
         if (word[0] == "'" or word[0] == '"') and\
            (word[-1] == "'" or word[-1] == '"'):
             return "str"
-        if word.find(self.comt[0]) == 0:
+        
+        if word.find(self.settings["commentDelimiters"][0]) == 0:
             return "cmt"
         
-        for i in range(len(self.groups)):
-            if self.groups[i].words.count(word) > 0:
-                return self.groups[i].colour
+        for groupName in self.groups:
+            if word in self.groups[groupName]:
+                return groupName
         return -1
 
 class syntaxDatabase:
@@ -307,7 +379,6 @@ class syntaxDatabase:
         self.configs = []
         self.path = path
         if self.getConfigs() == -1:
-            del self
             return
         self.active = None
 
@@ -324,9 +395,13 @@ class syntaxDatabase:
             parts = part.split(" ")
             self.configs.append(highlight(parts[0], parts[1], parts[2:] if len(parts) > 2 else ""))
             
+    def changeActive(self, index):
+        if index >= 0 and index < len(self.configs):
+            self.active = self.configs[index]
+        
     def isKeyword(self, word):
-        for group in self.active.groups:
-            if word in group.words:
+        for groupName in self.active.groups:
+            if word in self.active.groups[groupName]:
                 return True
         return False
 
@@ -378,9 +453,9 @@ class fontDatabase:
         global bottom, right
         self.bodySize = size
         self.bodyFont = self.loadFont(path, self.bodySize)
-        if len(files) != 0:
-            bottom = len(files[openFile].lines) * self.bodyFont.height
-            right = self.bodyFont.styles["regular"].size(files[openFile].longestLine())[0]
+        if fileManager.open != None:
+            bottom = len(fileManager.open.lines) * self.bodyFont.height
+            right = self.bodyFont.styles["regular"].size(fileManager.open.longestLine())[0]
             scale = self.bodyFont.height * 3
 
     def adjustScale(self, size = None):
@@ -389,9 +464,10 @@ class fontDatabase:
             size = self.bodySize
         self.bodySize = size
         self.updateFont()
-        bottom = len(files[openFile].lines) * self.bodyFont.height
-        right = self.bodyFont.styles["regular"].size(files[openFile].longestLine())[0]
-        scale = self.bodyFont.height * 3
+        if fileManager.open != None:
+            bottom = len(fileManager.open.lines) * self.bodyFont.height
+            right = self.bodyFont.styles["regular"].size(fileManager.open.longestLine())[0]
+            scale = self.bodyFont.height * 3
 
     def updateFont(self):
         self.bodyFont = self.loadFont(themeDtb.active.settings["bodyFont"], self.bodySize)   
@@ -497,9 +573,9 @@ class textCursor:
                 initialClick[0] = self.pos[0]
                 initialClick[1] = self.pos[1]
                 
-            if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
+            if self.pos[0] < len(fileManager.open.lines[self.pos[1]]):
                 self.pos[0] += 1
-            elif self.pos[1] < len(files[openFile].lines) - 1:
+            elif self.pos[1] < len(fileManager.open.lines) - 1:
                 self.pos[1] += 1
                 self.pos[0] = 0
                 
@@ -516,7 +592,7 @@ class textCursor:
                 self.pos[0] -= 1
             elif self.pos[1] > 0:
                 self.pos[1] -= 1
-                self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                self.pos[0] = len(fileManager.open.lines[self.pos[1]])
 
         if keyboard.keys[K_UP]:
             if initialClick[0] != -1 and not keyboard.modifiers[1]:
@@ -529,8 +605,8 @@ class textCursor:
                 
             if self.pos[1] > 0:
 
-                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
-                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                if self.pos[0] > len(fileManager.open.lines[self.pos[1]]) - 1:
+                    self.pos[0] = len(fileManager.open.lines[self.pos[1]])
                     
                 if self.pos[1] * fontDtb.bodyFont.height < vCursor:
                         vCursor = self.pos[1] * fontDtb.bodyFont.height - windh / 2
@@ -549,10 +625,10 @@ class textCursor:
                 initialClick[0] = self.pos[0]
                 initialClick[1] = self.pos[1]
                 
-            if self.pos[1] < len(files[openFile].lines) - 1:
+            if self.pos[1] < len(fileManager.open.lines) - 1:
                 
-                if self.pos[0] > len(files[openFile].lines[self.pos[1]]) - 1:
-                    self.pos[0] = len(files[openFile].lines[self.pos[1]])
+                if self.pos[0] > len(fileManager.open.lines[self.pos[1]]) - 1:
+                    self.pos[0] = len(fileManager.open.lines[self.pos[1]])
                 self.pos[1] += 1
                     
             if self.pos[1] * fontDtb.bodyFont.height > vCursor + windh:
@@ -564,66 +640,65 @@ class textCursor:
         #add string to cur line in place
         if keyboard.string != "":
             initialClick = [-1, -1]
-            files[openFile].add(keyboard.string, self.pos)
+            fileManager.open.add(keyboard.string, self.pos)
             self.pos[0] += len(keyboard.string)
 
         #shift line in cursor place by tab width amount
         elif keyboard.keys[K_TAB]:
             initialClick = [-1, -1]
-            files[openFile].addToLine(" " * tabWidth, self.pos)
+            fileManager.open.add(" " * tabWidth, self.pos)
             self.pos[0] += tabWidth
 
         #cut line in cursor place and move to new line
         elif keyboard.keys[K_RETURN]:
             initialClick = [-1, -1]
-            files[openFile].addLine(self.pos)
+            fileManager.open.addLine(self.pos)
 
             #shift cursor pos down a line and to the start
             self.pos[1] += 1
             self.pos[0] = 0
-            bottom = len(files[openFile].lines) * fontDtb.bodyFont.height
+            bottom = len(fileManager.open.lines) * fontDtb.bodyFont.height
 
         #remove chars in front cursor
         elif keyboard.keys[K_DELETE]:
             if isSelection:
-                files[openFile].remove(startX, startY, endX, endY)
+                fileManager.open.remove(startX, startY, endX, endY)
                 
                 self.pos = [startX, startY]
                 initialClick = [-1, -1]
             else:
                 #delete chars on same line
-                if self.pos[0] < len(files[openFile].lines[self.pos[1]]):
-                    files[openFile].delete(self.pos)
-
+                if self.pos[0] < len(fileManager.open.lines[self.pos[1]]):
+                    fileManager.open.delete(self.pos)
+                    
                 #merge line below onto current line
-                elif self.pos[1] < len(files[openFile].lines) - 1:
-                    files[openFile].mergeLines(self.pos[1], self.pos[1] + 1)
-                    files[openFile].updateLine(self.pos[1])
+                elif self.pos[1] < len(fileManager.open.lines) - 1:
+                    fileManager.open.mergeLines(self.pos[1], self.pos[1] + 1)
+                    fileManager.open.updateLine(self.pos[1])
 
         #delete chars before cursor
         elif keyboard.keys[K_BACKSPACE]:
             
             if isSelection:
-                files[openFile].remove(startX, startY, endX, endY)
-                
+                fileManager.open.remove(startX, startY, endX, endY)
                 self.pos = [startX, startY]
-                initialClick = [-1, -1]
+
             else:
                 #delete chars on cur line
                 if self.pos[0] > 0:
-                    files[openFile].backspace(self.pos)
+                    fileManager.open.backspace(self.pos)
                     
                     self.pos[0] -= 1
 
                 #merge cur line onto line above
                 elif self.pos[1] > 0:
                     
-                    self.pos[0] = len(files[openFile].lines[self.pos[1] - 1])
-                    files[openFile].mergeLines(self.pos[1] - 1, self.pos[1])
-                    if self.pos[1] < len(files[openFile].lines) - 1:
-                        files[openFile].updateLine(self.pos[1])
+                    self.pos[0] = len(fileManager.open.lines[self.pos[1] - 1])
+                    fileManager.open.mergeLines(self.pos[1] - 1, self.pos[1])
+                    if self.pos[1] < len(fileManager.open.lines) - 1:
+                        fileManager.open.updateLine(self.pos[1])
                     self.pos[1] -= 1
-                initialClick = [-1, -1]
+            initialClick = [-1, -1]
 
 def warn(string):
     print "warn -", string
@@ -686,17 +761,19 @@ def isNum(string):
 
 def inString(text, span):
     left = False
+    lC = ""
     for i in range(span[0], -1, -1):
-        if text[i] == '"':
+        if text[i] in ('"', "'"):
             left = True
+            lC = text[i]
             break
         
     if not left:
         return False
     
-    right = True
+    right = False
     for i in range(span[1], len(text)):
-        if text[i] == '"':
+        if text[i] == lC:
             right = True
             break
 
@@ -730,8 +807,8 @@ def addExtension(name, extension):
         return name + "." + extension
     
 global colours, syntaxDtb, fontDtb, screen, vCursor, hCursor, drawLineN, bgColour, lineColour,\
-       cursorColour, selectionColour, bottom, top, right, openFile, scale, tabWidth, \
-       textCursors, openFile, dtb, startY, endY, startX, endX, isSelection
+       cursorColour, selectionColour, bottom, top, right, scale, tabWidth, \
+       textCursors, dtb, startY, endY, startX, endX, isSelection, fileManager
 
 #initialize pygame
 pygame.init()
@@ -779,18 +856,14 @@ drawLineN = True
 
 screen = pygame.display.set_mode([windw, windh], pygame.RESIZABLE)
 
-#open file index
-openFile = 0
-
-files = []
-
+fileManager = FileManager()
 syntaxDtb = syntaxDatabase("manifest.txt")
 fontDtb = fontDatabase("assets/fonts", 20)
 themeDtb = themeDatabase(["user/themes/custom", "user/themes/prop"], "dark")
 
-files.append(File("files/textEdit.py"))
 fontDtb.adjustScale()
 
+fileManager.openFile("files/textEdit.py")
 
 guiComponents = guiManager(loadImages("assets/images/GUI"))
 
@@ -802,19 +875,16 @@ textCursors = []
 textCursors.append(textCursor([0, 0]))
 initialClick = [-1, -1]
 
-
 scale = 100
 pygame.key.set_repeat(250, 30)
 clock = pygame.time.Clock()
 
 guiComponents.setFont(pygame.font.SysFont("Courier", 15))
-guiComponents.addItem(DropDown([windw - 300, 0], [200, 26], ["hi"], 0), "fontSelector")
 guiComponents.addItem(DropDown([windw - 600, 0], [200, 26], ["hi"], 0), "themeSelector")
 guiComponents.addItem(CheckBox([20, 0], [20, 20], drawLineN), "lnToggle")
 
 time = 0
 on = True
-style = themeDtb.active.groups["def"].settings["style"]
 
 run = True
 while run:
@@ -887,7 +957,9 @@ while run:
         hCursor = 0
     elif hCursor + windw > right and right > windw:
         hCursor = right - windw
-        
+
+    fileManager.update()
+    
     mouse.update()
     keyboard.buildString()
     if on:
@@ -899,33 +971,34 @@ while run:
             on = not on
             time = 0
             
-    if mouse.clicked and mouse.pos[1] > top:
+    if fileManager.fileOpened() and mouse.clicked and mouse.pos[1] > top:
         xPos = hCursor
         yPos = (mouse.pos[1] + vCursor - top) / fontDtb.bodyFont.height
-        nLines = len(files[openFile].lines)
-        if yPos > nLines - 1:
-            yPos = nLines - 1
+        nLines = fileManager.open.numberOfLines()
+        
+        if yPos > nLines:
+            yPos = nLines
             
-        nChars = len(files[openFile].lines[yPos])
+        nChars = fileManager.open.lineLength(yPos)
         #-4 hard coded value to align cursor better
         charX = -4
         
         if drawLineN:
             charX = fontDtb.bodyFont.styles["regular"].size(str(nLines))[0]
         sliceMetrics = []
-        for i in range(len(files[openFile].parsed[yPos])):
-            if files[openFile].parsed[yPos][i][0]:
-                style = themeDtb.active.groups[files[openFile].parsed[yPos][i][2]].settings["style"]
-                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(files[openFile].parsed[yPos][i][1])
+        for i in range(len(fileManager.open.parsed[yPos])):
+            if fileManager.open.parsed[yPos][i][0]:
+                style = themeDtb.active.groups[fileManager.open.parsed[yPos][i][2]].settings["style"]
+                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
             else:
                 style = themeDtb.active.groups["def"].settings["style"]
-                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(files[openFile].parsed[yPos][i][1])
-        #sliceMetrics = fontDtb.bodyFont.styles["regular"].metrics(files[openFile].lines[yPos])
+                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
+
         mouseRect = pygame.Rect(mouse.pos[0] + hCursor, mouse.pos[1] + vCursor - top, 1, 1)
-        if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9:
-            mouseRect.x = fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9
+        if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9:
+            mouseRect.x = fontDtb.bodyFont.styles["regular"].size(str(len(fileManager.open.lines)))[0] + 9
         picked = False
-        for i in range(nChars):
+        for i in range(len(sliceMetrics)):
             if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.bodyFont.height, sliceMetrics[i][4], fontDtb.bodyFont.height)):
                 xPos = i
                 picked = True
@@ -942,7 +1015,7 @@ while run:
         textCursors[0].pos[0] = xPos
         textCursors[0].pos[1] = yPos
 
-    #Get the selection boundaries - on calculated once now
+    #Get the selection boundaries
     if initialClick[0] != -1 and ((initialClick[0] != textCursors[0].pos[0] and\
                                    initialClick[1] == textCursors[0].pos[1]) or initialClick[1] != textCursors[0].pos[1]):
         isSelection = True
@@ -967,10 +1040,6 @@ while run:
     guiComponents.update(mouse)
         
     drawLineN = guiComponents.items["lnToggle"].state
-    if guiComponents.items["fontSelector"].newSelection() and guiComponents.items["fontSelector"].selected != -1:
-        pass
-        #fontDtb.active = guiComponents.items["fontSelector"].selected
-        #fontDtb.adjustScale(0)
 
     if guiComponents.items["themeSelector"].newSelection() and guiComponents.items["themeSelector"].selected != -1:
         themeDtb.setActiveByName(guiComponents.items["themeSelector"].items[guiComponents.items["themeSelector"].selected])
@@ -984,22 +1053,22 @@ while run:
             actualX = -hCursor
             actualY = fontDtb.bodyFont.height * i + top - vCursor
             if drawLineN:
-                actualX += fontDtb.bodyFont.styles["regular"].size(str(len(files[openFile].lines)))[0] + 9
+                actualX += fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9
                 
             if i == startY and i == endY:
                 
-                actualX += files[openFile].parsedSize([startX, i])
-                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:startX])[0]
+                actualX += fileManager.open.parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][:startX])[0]
                 
-                lineWidth = files[openFile].parsedSize([endX, i]) - files[openFile].parsedSize([startX, i])
-                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][startX:endX])[0]
+                lineWidth = fileManager.open.parsedSize([endX, i]) - fileManager.open.parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][startX:endX])[0]
             elif i == startY:
-                actualX += files[openFile].parsedSize([startX, i])
-                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:startX])[0]
+                actualX += fileManager.open.parsedSize([startX, i])
+                #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][:startX])[0]
                 lineWidth = windw - actualX
             elif i == endY:
-                lineWidth = files[openFile].parsedSize([endX, i])
-                #fontDtb.bodyFont.styles["regular"].size(files[openFile].lines[i][:endX])[0]
+                lineWidth = fileManager.open.parsedSize([endX, i])
+                #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][:endX])[0]
             else:
                 lineWidth = windw
 
@@ -1008,7 +1077,7 @@ while run:
         for j in range(len(textCursors)):
             pygame.draw.rect(screen, themeDtb.active.settings["lineHighlight"], [0, textCursors[j].pos[1] * fontDtb.bodyFont.height - vCursor + top, windw - 5, fontDtb.bodyFont.height], 0)
 
-    files[openFile].drawFile()
+    fileManager.fileDraw()
         
     #Draw top bar
     pygame.draw.rect(screen, themeDtb.active.settings["background"], [0, 0, windw, top], 0)

@@ -11,37 +11,29 @@
 			"bodyFont": "AnonymousPro"
 		},
 		{
-			"group": "group0",
+			"group": "keywords",
 			"settings":{
-				"colour":[249, 38, 114],
+				"colour":[249, 38, 114]
+			}
+
+		},
+		{
+			"group": "dataTypes",
+			"settings":{
+				"colour":[102, 217, 239],
 				"style": "italic"
 			}
 
 		},
 		{
-			"group": "group1",
+			"group": "operators",
 			"settings":{
-				"colour":[249, 38, 114],
-				"style": "bold"
+				"colour":[249, 38, 114]
 			}
 
 		},
 		{
-			"group": "group2",
-			"settings":{
-				"colour":[102, 217, 239]
-			}
-
-		},
-		{
-			"group": "group3",
-			"settings":{
-				"colour":[255, 0, 0]
-			}
-
-		},
-		{
-			"group": "group2",
+			"group": "functions",
 			"settings":{
 				"colour":[102, 217, 239]
 			}

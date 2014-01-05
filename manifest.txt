@@ -1,1 +1,2 @@
 Python configs/python.cfg py
+C configs/C.cfg c
