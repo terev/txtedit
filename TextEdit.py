@@ -1,5 +1,4 @@
 import pygame, re, os, json
-from tkFileDialog import askopenfilename
 from pygame.locals import *
 from mouseHandler import *
 from keyboardHandler import *
@@ -79,7 +78,7 @@ class File:
             #print re.findall(r"def\ +\w+(\(+.*?(?=\))\))", line)
 
             #searches for strings, and numbers including floats
-            special = re.findall(r"\"+.*?(?=\")\"", line) + re.findall(r"\'+.*?(?=\')\'", line) + re.findall(r"[0-9]+\.?[0-9]*", line)
+            special = re.findall(r"\"+.*?(?=\")\"+", line) + re.findall(r"\'+.*?(?=\')\'+", line) + re.findall(r"[0-9]+\.?[0-9]*", line)
             for i in range(len(special)):
                 cur = []
                 padded = padWord(special[i])
@@ -237,7 +236,7 @@ class File:
         if drawLineN:
             pygame.draw.rect(screen, themeDtb.active.settings["background"], [0, top, sideBuff, windh], 0)
             pygame.draw.line(screen, themeDtb.active.groups["def"].settings["colour"], [sideBuff, 0], [sideBuff, windh], 1)
-            for i in range(self.numberOfLines()):
+            for i in scope:
                 lineN = fontDtb.bodyFont.styles["regular"].render(str(i + 1).rjust(len(str(self.numberOfLines()))), 20, themeDtb.active.groups["def"].settings["colour"])
                 screen.blit(lineN, [2, i * fontDtb.bodyFont.height - vCursor + top])
 
@@ -972,7 +971,7 @@ while run:
             time = 0
             
     if fileManager.fileOpened() and mouse.clicked and mouse.pos[1] > top:
-        xPos = hCursor
+        xPos = 0
         yPos = (mouse.pos[1] + vCursor - top) / fontDtb.bodyFont.height
         nLines = fileManager.open.numberOfLines()
         
@@ -996,7 +995,7 @@ while run:
 
         mouseRect = pygame.Rect(mouse.pos[0] + hCursor, mouse.pos[1] + vCursor - top, 1, 1)
         if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9:
-            mouseRect.x = fontDtb.bodyFont.styles["regular"].size(str(len(fileManager.open.lines)))[0] + 9
+            mouseRect.x = fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9
         picked = False
         for i in range(len(sliceMetrics)):
             if mouseRect.colliderect(pygame.Rect(charX, yPos * fontDtb.bodyFont.height, sliceMetrics[i][4], fontDtb.bodyFont.height)):
@@ -1065,12 +1064,12 @@ while run:
             elif i == startY:
                 actualX += fileManager.open.parsedSize([startX, i])
                 #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][:startX])[0]
-                lineWidth = windw - actualX
+                lineWidth = fileManager.open.parsedSize([fileManager.open.lineLength(i), i]) - fileManager.open.parsedSize([startX, i])
             elif i == endY:
                 lineWidth = fileManager.open.parsedSize([endX, i])
                 #fontDtb.bodyFont.styles["regular"].size(fileManager.open.lines[i][:endX])[0]
             else:
-                lineWidth = windw
+                lineWidth = fileManager.open.parsedSize([fileManager.open.lineLength(i),i])
 
             pygame.draw.rect(screen, themeDtb.active.settings["selections"], (actualX, fontDtb.bodyFont.height * i - vCursor + top, lineWidth, fontDtb.bodyFont.height), 0)
     else:
