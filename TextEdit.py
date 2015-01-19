@@ -267,13 +267,22 @@ class File:
             if startY < len(self.lines) - 1:
                 self.updateLine(startY + 1)
 
+    
     def delete(self, pos):
         self.lines[pos[1]] = self.lines[pos[1]][:pos[0]] + self.lines[pos[1]][pos[0] + 1:]
         self.updateLine(pos[1])
 
     def backspace(self, pos):
-        self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - 1] + self.lines[pos[1]][pos[0]:]
+        if self.lines[pos[1]][:pos[0]].isspace():
+            if pos[0] % tabWidth:
+                rmamount = pos[0] % tabWidth
+            else:
+                rmamount = tabWidth
+        else:
+            rmamount = 1
+        self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - rmamount] + self.lines[pos[1]][pos[0]:]
         self.updateLine(pos[1])
+        return rmamount
 
     def checkChar(self, pos, char):
         if pos[0] >= 0 and pos[0] < len(self.lines[pos[1]]):
@@ -645,8 +654,9 @@ class textCursor:
         #shift line in cursor place by tab width amount
         elif keyboard.keys[K_TAB]:
             initialClick = [-1, -1]
-            fileManager.open.add(" " * tabWidth, self.pos)
-            self.pos[0] += tabWidth
+            toadd = (tabWidth - (self.pos[0] % tabWidth))
+            fileManager.open.add(" " * toadd, self.pos)
+            self.pos[0] += toadd
 
         #cut line in cursor place and move to new line
         elif keyboard.keys[K_RETURN]:
@@ -685,9 +695,9 @@ class textCursor:
             else:
                 #delete chars on cur line
                 if self.pos[0] > 0:
-                    fileManager.open.backspace(self.pos)
+                    removed = fileManager.open.backspace(self.pos)
                     
-                    self.pos[0] -= 1
+                    self.pos[0] -= removed
 
                 #merge cur line onto line above
                 elif self.pos[1] > 0:
@@ -812,8 +822,13 @@ global colours, syntaxDtb, fontDtb, screen, vCursor, hCursor, drawLineN, bgColou
 #initialize pygame
 pygame.init()
 
+#system screen width and height
+
+displayInfo = pygame.display.Info()
+sysSrcWidth, sysScrHeight = displayInfo.current_w, displayInfo.current_h
+
 #window width and height
-windw, windh = 1900, 980
+windw, windh = 720, 700
 
 #screen flush colour
 bgColour = [255, 255, 255]
@@ -991,7 +1006,9 @@ while run:
                 sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
             else:
                 style = themeDtb.active.groups["def"].settings["style"]
-                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
+                metric = fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
+                if metric:
+                    sliceMetrics += metric
 
         mouseRect = pygame.Rect(mouse.pos[0] + hCursor, mouse.pos[1] + vCursor - top, 1, 1)
         if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9:
