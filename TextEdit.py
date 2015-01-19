@@ -822,8 +822,13 @@ global colours, syntaxDtb, fontDtb, screen, vCursor, hCursor, drawLineN, bgColou
 #initialize pygame
 pygame.init()
 
+#system screen width and height
+
+displayInfo = pygame.display.Info()
+sysSrcWidth, sysScrHeight = displayInfo.current_w, displayInfo.current_h
+
 #window width and height
-windw, windh = 1900, 980
+windw, windh = 720, 700
 
 #screen flush colour
 bgColour = [255, 255, 255]
@@ -1001,7 +1006,9 @@ while run:
                 sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
             else:
                 style = themeDtb.active.groups["def"].settings["style"]
-                sliceMetrics += fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
+                metric = fontDtb.bodyFont.styles[style].metrics(fileManager.open.parsed[yPos][i][1])
+                if metric:
+                    sliceMetrics += metric
 
         mouseRect = pygame.Rect(mouse.pos[0] + hCursor, mouse.pos[1] + vCursor - top, 1, 1)
         if drawLineN and mouseRect.x < fontDtb.bodyFont.styles["regular"].size(str(fileManager.open.numberOfLines()))[0] + 9:
