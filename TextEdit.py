@@ -267,13 +267,22 @@ class File:
             if startY < len(self.lines) - 1:
                 self.updateLine(startY + 1)
 
+    
     def delete(self, pos):
         self.lines[pos[1]] = self.lines[pos[1]][:pos[0]] + self.lines[pos[1]][pos[0] + 1:]
         self.updateLine(pos[1])
 
     def backspace(self, pos):
-        self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - 1] + self.lines[pos[1]][pos[0]:]
+        if self.lines[pos[1]][:pos[0]].isspace():
+            if pos[0] % tabWidth:
+                rmamount = pos[0] % tabWidth
+            else:
+                rmamount = tabWidth
+        else:
+            rmamount = 1
+        self.lines[pos[1]] =  self.lines[pos[1]][:pos[0] - rmamount] + self.lines[pos[1]][pos[0]:]
         self.updateLine(pos[1])
+        return rmamount
 
     def checkChar(self, pos, char):
         if pos[0] >= 0 and pos[0] < len(self.lines[pos[1]]):
@@ -645,8 +654,9 @@ class textCursor:
         #shift line in cursor place by tab width amount
         elif keyboard.keys[K_TAB]:
             initialClick = [-1, -1]
-            fileManager.open.add(" " * tabWidth, self.pos)
-            self.pos[0] += tabWidth
+            toadd = (tabWidth - (self.pos[0] % tabWidth))
+            fileManager.open.add(" " * toadd, self.pos)
+            self.pos[0] += toadd
 
         #cut line in cursor place and move to new line
         elif keyboard.keys[K_RETURN]:
@@ -685,9 +695,9 @@ class textCursor:
             else:
                 #delete chars on cur line
                 if self.pos[0] > 0:
-                    fileManager.open.backspace(self.pos)
+                    removed = fileManager.open.backspace(self.pos)
                     
-                    self.pos[0] -= 1
+                    self.pos[0] -= removed
 
                 #merge cur line onto line above
                 elif self.pos[1] > 0:
